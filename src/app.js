@@ -1,4 +1,4 @@
-import { guestLimitReached, recordGuestSubmission } from './lib/guest-access.js';
+import { guestLoginRequired } from './lib/guest-access.js';
 import { trapDialogFocus } from './lib/dialog.js';
 import { validateEvaluation } from './lib/evaluation-result.js';
 import { authenticate } from './services/auth.js';
@@ -301,7 +301,9 @@ function selectStep(i) {
     + (st === 'proved' ? ' · ✓ Proved' : st === 'reviewed' ? ' · Solution viewed' : '');
   popupNodeTitle.textContent = meta.node;
   popupNodeDesc.textContent = meta.desc;
-  startLessonBtn.textContent = st === 'proved' ? 'Practice again' : (st === 'reviewed' ? 'Prove it yourself' : 'Start');
+  startLessonBtn.textContent = isGuestLoginRequired()
+    ? 'Login to Continue'
+    : (st === 'proved' ? 'Practice again' : (st === 'reviewed' ? 'Prove it yourself' : 'Start'));
 }
 
 function loadCourse(courseKey, stepIdx) {
@@ -857,6 +859,10 @@ solutionModal.addEventListener('click', (e) => { if (e.target === solutionModal)
 
 // ---------- Navigation ----------
 function openExercise(stepIdx) {
+  if (isGuestLoginRequired()) {
+    openAppModal('guest-gate');
+    return;
+  }
   exerciseModal.classList.add('active');
   exerciseModal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
@@ -990,10 +996,6 @@ function renderMentorFeedback(result, pid) {
 checkBtn.addEventListener('click', async () => {
   if (evaluating || checkBtn.disabled) return;
   if (checkMode === 'advance') {
-    if (isGuestLimitReached()) {
-      openAppModal('guest-gate');
-      return;
-    }
     goNext();
     return;
   }
@@ -1004,13 +1006,6 @@ checkBtn.addEventListener('click', async () => {
   const userText = proofInput.value.trim();
   if (!userText || userText === session.lastSubmitted[pid]) return;
 
-  if (isGuestLimitReached()) {
-    openAppModal('guest-gate');
-    return;
-  }
-
-  recordGuestSubmission(state, currentUser);
-  saveState();
   const generation = ++evaluationGeneration;
   evaluating = true;
   session.lastSubmitted[pid] = userText;
@@ -1122,7 +1117,6 @@ checkBtn.addEventListener('click', async () => {
     refreshSubmitState();
     proofInput.focus();
   }
-  if (isGuestLimitReached()) openAppModal('guest-gate');
 });
 
 // ==========================================
@@ -1231,6 +1225,7 @@ function setActiveUser(user) {
   }
   saveState();
   updateAuthUi(currentUser);
+  if (courseView.classList.contains('active')) selectStep(selectedStep);
   if (homeView.classList.contains('active')) renderHome();
   if (youView.classList.contains('active')) renderYou();
 }
@@ -1280,8 +1275,8 @@ function initSupabase() {
   }
 }
 
-function isGuestLimitReached() {
-  return guestLimitReached(state, currentUser);
+function isGuestLoginRequired() {
+  return guestLoginRequired(currentUser);
 }
 
 async function handleDemoLogin() {
@@ -1590,4 +1585,3 @@ document.addEventListener('keydown', (e) => {
   const hash = window.location.hash.replace('#', '');
   switchView(hash || 'home', false);
 })();
-

@@ -6,7 +6,7 @@ import { validateEvaluation } from '../src/lib/evaluation-result.js';
 import { createProgressService } from '../src/services/progress.js';
 import evaluateHandler from '../api/evaluate.js';
 import { celebrateProof, stopCelebration } from '../src/lib/celebration.js';
-import { guestLimitReached, recordGuestSubmission } from '../src/lib/guest-access.js';
+import { guestLoginRequired } from '../src/lib/guest-access.js';
 import { renderGuestGate } from '../src/views/dialogs/guestGate.js';
 
 test('sign-up without a session asks for email confirmation instead of signing in', async () => {
@@ -16,27 +16,22 @@ test('sign-up without a session asks for email confirmation instead of signing i
   assert.equal(result.user, null);
 });
 
-test('guests get exactly one submission attempt, regardless of correctness', () => {
-  const state = { guestSubmissions: 0 };
-  assert.equal(guestLimitReached(state, null), false);
-  recordGuestSubmission(state, null);
-  assert.equal(guestLimitReached(state, null), true);
-  assert.equal(guestLimitReached(state, { isLocalFallback: true }), true);
-  assert.equal(guestLimitReached(state, { id: 'demo', isLocalFallback: true, isDemo: true }), false);
-  assert.equal(guestLimitReached(state, { id: 'authenticated' }), false);
-  recordGuestSubmission(state, { id: 'demo', isLocalFallback: true, isDemo: true });
-  assert.equal(state.guestSubmissions, 1);
-  assert.equal(guestLimitReached(state, null), true);
+test('submissions require a demo or authenticated user', () => {
+  assert.equal(guestLoginRequired(null), true);
+  assert.equal(guestLoginRequired({ isLocalFallback: true }), true);
+  assert.equal(guestLoginRequired({ id: 'demo', isLocalFallback: true, isDemo: true }), false);
+  assert.equal(guestLoginRequired({ id: 'authenticated' }), false);
   assert.ok(!renderGuestGate().includes('btn-gate-continue-guest'));
 });
 
-test('the guest limit survives reload and recognizes existing guest attempts', () => {
+test('previous guest submissions do not bypass the login requirement', () => {
   let value = JSON.stringify({ guestSubmissions: 1, activity: [] });
   globalThis.localStorage = { getItem: () => value };
   try {
-    assert.equal(guestLimitReached(loadState(), null), true);
+    assert.equal(guestLoginRequired(null), true);
     value = JSON.stringify({ activity: [{ t: Date.now(), ok: false }] });
-    assert.equal(guestLimitReached(loadState(), null), true);
+    assert.equal(guestLoginRequired(null), true);
+    assert.equal(loadState().guestSubmissions, 1);
   } finally { delete globalThis.localStorage; }
 });
 

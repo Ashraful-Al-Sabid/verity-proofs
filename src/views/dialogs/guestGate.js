@@ -2,9 +2,9 @@ export function renderGuestGate() {
   return `
       <div class="guest-gate-card">
         <div class="guest-gate-badge">🔐</div>
-        <h4 class="guest-gate-title">Log in to keep practicing</h4>
+        <h4 class="guest-gate-title">Log in to start practicing</h4>
         <p class="guest-gate-desc">
-          You've used your free proof submission. Sign in, create an account, or choose Demo Login to submit another attempt.
+          Sign in, create a free account, or choose Demo Login before submitting a proof.
         </p>
 
         <div class="guest-gate-features">
@@ -41,7 +41,7 @@ export function renderGuestGate() {
             Sign In to Existing Account
           </button>
           <button type="button" id="btn-gate-dismiss" class="btn-guest-dismiss">
-            View My Feedback
+            Maybe Later
           </button>
         </div>
       </div>
