@@ -1,3 +1,6 @@
+import { validateEvaluation } from '../src/lib/evaluation-result.js';
+import { coursesData } from '../src/data/courses.js';
+import { stepMeta } from '../src/data/rubrics.js';
 // Vercel Serverless Function: Ultra-Fast Gemini AI Proof Evaluator
 // Automatically discovers the best/fastest available model for the API key, caches the winner,
 // and uses hedged requests so proof evaluation completes in < 1 second.
@@ -118,7 +121,7 @@ function parseGeminiResponseJson(json, rubric, respondedModel) {
   evalResult.engine = 'gemini';
   evalResult.modelName = respondedModel;
   evalResult.isServerHosted = true;
-  return evalResult;
+  return validateEvaluation(evalResult);
 }
 
 async function callSingleModel(apiKey, modelName, promptText, rubric) {
@@ -181,11 +184,21 @@ export default async function handler(req, res) {
     });
   }
 
+  let body;
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
+  catch { return res.status(400).json({ error: 'Invalid JSON body.' }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ error: 'Expected a JSON object.' });
+  }
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const { userText, cumulativeText, problem, rubric, model, availableModels } = body;
+    const { userText, cumulativeText, problem: requestedProblem, model, availableModels } = body;
+    const problem = Object.values(coursesData).flatMap(course => course.problems).find(item => item.id === requestedProblem?.id);
+    const rubric = problem && stepMeta[problem.id]?.rubric;
 
-    if (!userText || !problem) {
+    if (typeof userText !== 'string' || !userText.trim() || userText.length > 20000 ||
+      !problem || typeof problem.title !== 'string' || typeof problem.text !== 'string' ||
+      (model != null && typeof model !== 'string') ||
+      (cumulativeText != null && (typeof cumulativeText !== 'string' || cumulativeText.length > 100000))) {
       return res.status(400).json({ error: 'Missing required proof text or problem definition.' });
     }
 
@@ -300,7 +313,7 @@ export default async function handler(req, res) {
     return res.status(200).json(winningResult);
 
   } catch (err) {
-    console.error('Server Gemini evaluation error:', err);
+    console.error('Server Gemini evaluation error:', err.message);
     return res.status(500).json({
       error: err.message || 'Evaluation error',
       fallbackToLocal: true

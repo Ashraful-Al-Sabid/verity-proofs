@@ -31,8 +31,8 @@ export function renderGuestGate() {
           <button type="button" id="btn-gate-demo" class="btn-demo-signin" style="margin-bottom:6px;">
             <span class="btn-demo-icon">⚡</span>
             <div class="btn-demo-text">
-              <span class="btn-demo-title">1-Click Demo Sign In</span>
-              <span class="btn-demo-sub">Save XP & unlock all 21 proofs instantly</span>
+              <span class="btn-demo-title">Try Demo</span>
+              <span class="btn-demo-sub">Explore all 21 proofs on this device</span>
             </div>
           </button>
           <button type="button" id="btn-gate-signup" class="btn-guest-signup">

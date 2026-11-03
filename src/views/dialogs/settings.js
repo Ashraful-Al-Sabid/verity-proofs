@@ -45,13 +45,15 @@ export function renderSettings({ state, currentUser, totalProved, totalSteps, is
               <h4 class="gemini-card-title">Account & Cloud Sync</h4>
             </div>
             <span class="gemini-connection-pill ${currentUser ? 'connected' : 'offline'}">
-              ${currentUser ? '● Signed In' : '○ Guest Session'}
+              ${currentUser?.isLocalFallback ? '○ Local Demo' : currentUser ? '● Signed In' : '○ Guest Session'}
             </span>
           </div>
           <p class="gemini-card-desc">
-            ${currentUser
+            ${currentUser?.isLocalFallback
+              ? 'Demo progress is saved on this device. Sign out and create an account to use cloud sync.'
+              : currentUser
               ? 'Signed in as <strong>' + escapeHtml(signedInName) + '</strong> (' + escapeHtml(signedInEmail) + '). Your XP, completed proofs, and favorites are automatically synced.'
-              : 'You are currently in Guest Mode. Sign in or use 1-Click Demo Sign In to sync your XP and unlock all 21 proofs across devices.'}
+              : 'You are currently in Guest Mode. Sign in to sync your XP across devices, or try the demo to explore all 21 proofs locally.'}
           </p>
 
           <div class="gemini-actions-row">
@@ -62,8 +64,8 @@ export function renderSettings({ state, currentUser, totalProved, totalSteps, is
         </div>
 
         <div class="settings-action-section">
-          <p class="settings-desc">Your progress is automatically saved. You can reset local progress anytime.</p>
-          <button type="button" class="btn-danger-reset" id="btn-modal-reset">Reset All Saved Progress</button>
+          <p class="settings-desc">Your progress is automatically saved. You can reset progress cached on this device; cloud progress is kept.</p>
+          <button type="button" class="btn-danger-reset" id="btn-modal-reset">Reset Local Progress</button>
         </div>
       </div>
     `;

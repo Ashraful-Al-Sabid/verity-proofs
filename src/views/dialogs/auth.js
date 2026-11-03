@@ -4,8 +4,8 @@ export function renderAuth({ currentAuthMode }) {
         <button type="button" id="btn-auth-demo" class="btn-demo-signin">
           <span class="btn-demo-icon">⚡</span>
           <div class="btn-demo-text">
-            <span class="btn-demo-title">1-Click Demo Sign In</span>
-            <span class="btn-demo-sub">Instant reviewer access & cloud sync</span>
+            <span class="btn-demo-title">Try Demo</span>
+            <span class="btn-demo-sub">Explore all lessons on this device</span>
           </div>
         </button>
 

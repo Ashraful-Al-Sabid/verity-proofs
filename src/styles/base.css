@@ -397,3 +397,20 @@ body {
   }
 }
 
+
+@media (max-width: 640px) {
+  .navbar { padding: 0 12px; gap: 10px; }
+  .brand-logo { font-size: 1.4rem; gap: 6px; }
+  .brand-icon { width: 22px; height: 22px; }
+  .nav-links { gap: 6px; }
+  .nav-link { font-size: 0.84rem; padding: 0 3px; min-width: 40px; justify-content: center; }
+  .nav-link .icon { display: none; }
+  .nav-menu-item { margin-left: 0; }
+  .menu-btn { min-width: 44px; min-height: 44px; }
+}
+
+@media (max-width: 360px) {
+  .brand-logo { font-size: 1.15rem; gap: 4px; }
+  .navbar { gap: 4px; }
+}
+

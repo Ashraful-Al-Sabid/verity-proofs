@@ -1,3 +1,6 @@
+import { trapDialogFocus } from './lib/dialog.js';
+import { validateEvaluation } from './lib/evaluation-result.js';
+import { authenticate } from './services/auth.js';
 import { renderSettings } from './views/dialogs/settings.js';
 import { renderAbout } from './views/dialogs/about.js';
 import { renderHelp } from './views/dialogs/help.js';
@@ -6,8 +9,9 @@ import { renderGuestGate } from './views/dialogs/guestGate.js';
 import { createClient } from '@supabase/supabase-js';
 import { coursesData } from './data/courses.js';
 import { stepMeta } from './data/rubrics.js';
-import { loadState, persistState } from './lib/storage.js';
+import { loadState, persistState, archiveProgress } from './lib/storage.js';
 import { escapeHtml } from './lib/html.js';
+import { celebrateProof, stopCelebration } from './lib/celebration.js';
 import { evaluateProof } from './services/proof-evaluator.js';
 import { createGeminiService } from './services/gemini.js';
 import { createProgressService } from './services/progress.js';
@@ -19,12 +23,15 @@ const { DEFAULT_GEMINI_MODELS, formatModelLabel, fetchAvailableGeminiModels, tes
 const { migrateGuestProgressToCloud, fetchCloudState, saveStepToCloud, syncFavoriteToCloud } = createProgressService({
   getState: () => state, getClient: () => supabaseClient, getUser: () => currentUser,
   saveState, updateXpDisplay, renderProgress,
+  onSyncError() {
+    if (navSyncPill) { navSyncPill.style.display = 'inline'; navSyncPill.textContent = 'Sync failed'; navSyncPill.title = 'Progress is saved on this device. Cloud synchronization failed.'; }
+  },
   onSync() {
     document.querySelectorAll('.star-btn').forEach(btn => {
       const id = btn.closest('.topic-row')?.id;
       if (id) btn.classList.toggle('favorited', !!state.favorites[id]);
     });
-    if (navSyncPill) { navSyncPill.style.display = 'inline'; navSyncPill.title = 'Saved to Supabase Cloud'; }
+    if (navSyncPill) { navSyncPill.style.display = 'inline'; navSyncPill.textContent = '☁️'; navSyncPill.title = 'Saved to Supabase Cloud'; }
   }
 });
 
@@ -64,6 +71,8 @@ function provedCount(key) {
 let activeCourseKey = 'parity';
 let selectedStep = 0;
 let currentStep = 0;
+let evaluationGeneration = 0;
+let evaluating = false;
 let checkMode = 'submit'; // 'submit' | 'advance' | 'close'
 
 // In-memory session data per problem id
@@ -438,7 +447,11 @@ function renderYou() {
   const nouns = { week: 'week', month: 'month', year: 'year', all: 'period' };
   const noun = nouns[youPeriod];
 
-  document.querySelectorAll('#you-seg .you-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.period === youPeriod));
+  document.querySelectorAll('#you-seg .you-seg-btn').forEach(b => {
+    const selected = b.dataset.period === youPeriod;
+    b.classList.toggle('active', selected);
+    b.setAttribute('aria-selected', String(selected));
+  });
   document.getElementById('you-period-label').textContent = range.navLabel;
   document.getElementById('you-prev').style.visibility = youPeriod === 'all' ? 'hidden' : 'visible';
   document.getElementById('you-next').style.visibility = youPeriod === 'all' ? 'hidden' : 'visible';
@@ -514,6 +527,8 @@ document.getElementById('you-prev').addEventListener('click', () => { youOffset 
 document.getElementById('you-next').addEventListener('click', () => { if (youOffset < 0) { youOffset += 1; renderYou(); } });
 
 function switchView(target, push = true, stepIdx) {
+  if (exerciseModal.classList.contains('active')) closeExercise();
+  if (appModalBackdrop.style.display === 'flex') closeAppModal();
   [homeView, topicsView, courseView, youView].forEach(v => v.classList.remove('active'));
   navHome.classList.remove('active');
   navTopics.classList.remove('active');
@@ -570,16 +585,20 @@ document.querySelectorAll('.card-launch-proof').forEach(card => {
   bindCard(card, () => switchView('proof-foundations', true, parseInt(card.getAttribute('data-step') || '0', 10)));
 });
 
-window.addEventListener('popstate', () => {
+window.addEventListener('hashchange', () => {
   const hash = window.location.hash.replace('#', '');
-  switchView(hash || 'topics', false);
+  switchView(hash || 'home', false);
 });
 
 document.querySelectorAll('.topic-row.expandable .topic-main').forEach(main => {
+  main.querySelector('.chevron-btn')?.setAttribute('aria-expanded', 'false');
   main.addEventListener('click', (e) => {
     if (e.target.closest('.star-btn')) return;
     const row = main.closest('.topic-row');
-    if (row) row.classList.toggle('expanded');
+    if (row) {
+      const expanded = row.classList.toggle('expanded');
+      row.querySelector('.chevron-btn')?.setAttribute('aria-expanded', String(expanded));
+    }
   });
 });
 
@@ -651,7 +670,7 @@ function updateSolutionButton() {
   const p = currentProblem();
   const attempts = session.attempts[p.id] || 0;
   const used = session.hints[p.id] || 0;
-  const unlocked = attempts > 0 || used >= hintLadder(p).length || !!stepStatus(activeCourseKey, p.id);
+  const unlocked = !evaluating && (attempts > 0 || used >= hintLadder(p).length || !!stepStatus(activeCourseKey, p.id));
   btnViewSolution.disabled = !unlocked;
   btnViewSolution.title = unlocked ? 'View the reference solution' : 'Unlocks after your first attempt (or once all hints are used)';
 }
@@ -664,7 +683,7 @@ function clearFeedback() {
 }
 
 function refreshSubmitState() {
-  if (checkMode !== 'submit') return;
+  if (checkMode !== 'submit' || evaluating) return;
   const p = currentProblem();
   const text = proofInput.value.trim();
   const unchanged = text === (session.lastSubmitted[p.id] || null);
@@ -672,6 +691,10 @@ function refreshSubmitState() {
 }
 
 function renderStep(idx) {
+  if (evaluating) delete session.lastSubmitted[currentProblem().id];
+  evaluationGeneration++;
+  evaluating = false;
+  stopCelebration();
   const course = coursesData[activeCourseKey];
   const ps = course.problems;
   currentStep = idx;
@@ -709,6 +732,12 @@ function renderStep(idx) {
 
   setCheckButton('submit', 'Check Proof', true);
   refreshSubmitState();
+  if (stepStatus(activeCourseKey, p.id) === 'proved') {
+    feedbackMessage.className = 'feedback-message success show';
+    feedbackTitle.textContent = 'Already proved';
+    feedbackExplanation.textContent = 'You completed this proof. Continue to the next step or edit your argument to practice again.';
+    setCheckButton('advance', idx === ps.length - 1 ? 'Finish Lesson' : 'Next Step →', false);
+  }
 }
 
 function updateWordCount() {
@@ -718,6 +747,10 @@ function updateWordCount() {
 }
 
 proofInput.addEventListener('input', () => {
+  if (checkMode === 'advance' && stepStatus(activeCourseKey, currentProblem().id) === 'proved') {
+    clearFeedback();
+    setCheckButton('submit', 'Check Proof', true);
+  }
   updateWordCount();
   session.drafts[currentProblem().id] = proofInput.value;
   refreshSubmitState();
@@ -732,6 +765,7 @@ proofInput.addEventListener('keydown', (e) => {
 
 // ---------- Hints ----------
 btnRequestHint.addEventListener('click', () => {
+  if (evaluating) return;
   const p = currentProblem();
   const ladder = hintLadder(p);
   const used = session.hints[p.id] || 0;
@@ -749,6 +783,7 @@ btnCloseHint.addEventListener('click', () => { curatedHintBox.style.display = 'n
 
 // ---------- Reference solution ----------
 function openSolution() {
+  if (evaluating) return;
   const p = currentProblem();
   const sol = p.curatedSolution;
   if (!sol) return;
@@ -776,10 +811,12 @@ function openSolution() {
       <p class="sol-block-content">${nl(sol.commonMistakes)}</p>
     </div>`;
   solutionModal.style.display = 'flex';
+  btnCloseSolutionModal.focus();
   btnSolutionProceed.textContent = currentStep < coursesData[activeCourseKey].problems.length - 1 ? 'Next step →' : 'Finish lesson';
 
   if (stepStatus(activeCourseKey, p.id) !== 'proved') {
     setStepStatus(activeCourseKey, p.id, 'reviewed');
+    if (currentUser && !currentUser.isLocalFallback) migrateGuestProgressToCloud(currentUser.id);
     showReviewedState();
   }
   renderProgress();
@@ -798,13 +835,18 @@ function showReviewedState() {
   setCheckButton('advance', isLast ? 'Finish Lesson' : 'Next Step →', false);
   document.getElementById('btn-rewrite').addEventListener('click', () => {
     clearFeedback();
+    proofInput.readOnly = false;
+    delete session.lastSubmitted[currentProblem().id];
     setCheckButton('submit', 'Check Proof', true);
     proofInput.focus();
     refreshSubmitState();
   });
 }
 
-function closeSolution() { solutionModal.style.display = 'none'; }
+function closeSolution() {
+  if (solutionModal.contains(document.activeElement)) btnViewSolution.focus();
+  solutionModal.style.display = 'none';
+}
 
 btnViewSolution.addEventListener('click', openSolution);
 btnCloseSolutionModal.addEventListener('click', closeSolution);
@@ -818,10 +860,15 @@ function openExercise(stepIdx) {
   exerciseModal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
   renderStep(stepIdx);
-  setTimeout(() => proofInput.focus(), 150);
+  proofInput.focus();
 }
 
 function closeExercise() {
+  if (evaluating) delete session.lastSubmitted[currentProblem().id];
+  evaluationGeneration++;
+  evaluating = false;
+  startLessonBtn.focus();
+  stopCelebration();
   closeSolution();
   exerciseModal.classList.remove('active');
   exerciseModal.setAttribute('aria-hidden', 'true');
@@ -876,11 +923,6 @@ function showLessonComplete() {
 startLessonBtn.addEventListener('click', () => openExercise(selectedStep));
 exerciseClose.addEventListener('click', closeExercise);
 
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if (solutionModal.style.display !== 'none') closeSolution();
-  else if (exerciseModal.classList.contains('active')) closeExercise();
-});
 
 // ==========================================
 // SOCRATIC PROOF MENTOR
@@ -912,11 +954,6 @@ function updateAiStatusBadge() {
 
 
 function renderMentorFeedback(result, pid) {
-  const history = session.missingHistory[pid] || (session.missingHistory[pid] = []);
-  if (typeof result.missingIdx !== 'undefined') history.push(result.missingIdx);
-  const stuck = history.length >= 2 && history[history.length - 1] === history[history.length - 2];
-  const hintsLeft = hintLadder(currentProblem()).length - (session.hints[pid] || 0);
-
   const isLiveGemini = result.engine === 'gemini';
   const engineLabel = isLiveGemini
     ? '✨ Evaluated by ' + formatModelLabel(result.modelName || 'gemini-3.8-flash')
@@ -931,34 +968,26 @@ function renderMentorFeedback(result, pid) {
       <ul class="established-list">${result.established.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
     </div>` : '';
 
-  const nudgeHtml = (result.nudge ? `<div class="mentor-nudge">${escapeHtml(result.nudge)}</div>` : '') +
-    (stuck ? `
-    <div class="mentor-nudge">Stuck on the same step? ${hintsLeft > 0
-      ? 'Try <strong>Request Hint</strong>. Hints nudge your thinking; they don\'t give the answer away.'
-      : 'You can open the <strong>Full Solution</strong>, then rewrite the proof in your own words.'}</div>` : '');
-
   const isReconsider = result.status === 'reconsider' || result.status === 'incorrect-claim';
   feedbackMessage.className = 'feedback-message ' + (isReconsider ? 'error' : 'partial') + ' show';
   feedbackIcon.innerHTML = isReconsider ? '🤔' : '💡';
   feedbackTitle.textContent = result.title || (isReconsider ? 'Recheck your claim' : 'Keep going');
   feedbackExplanation.innerHTML = `
     <div class="mentor-feedback-flow">
-      <div class="ai-engine-tag ${isLiveGemini ? 'gemini' : 'local'}">${engineLabel}</div>
+      <div class="ai-engine-tag ${isLiveGemini ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
       ${fallbackNoticeHtml}
       ${establishedHtml}
       <div class="socratic-question-card">
         <div class="socratic-header">
           <span>❓ Mentor question</span>
-          <span class="guidance-stage-pill">${result.done || 0}/${result.total || 1} key ideas</span>
         </div>
         <p class="socratic-question-text">${escapeHtml(result.question || 'How does this claim lead logically to the required conclusion?')}</p>
-        <span class="socratic-prompt-hint">✍️ Revise your proof in the box above to answer this, then check again.</span>
       </div>
-      ${nudgeHtml}
     </div>`;
 }
 
 checkBtn.addEventListener('click', async () => {
+  if (evaluating || checkBtn.disabled) return;
   if (checkMode === 'advance') {
     if (isGuestLimitReached()) {
       openAppModal('guest-gate');
@@ -979,11 +1008,14 @@ checkBtn.addEventListener('click', async () => {
     return;
   }
 
+  const generation = ++evaluationGeneration;
+  evaluating = true;
   session.lastSubmitted[pid] = userText;
   session.attempts[pid] = (session.attempts[pid] || 0) + 1;
   if (!session.history[pid]) session.history[pid] = [];
   session.history[pid].push(userText);
-  const cumulativeText = session.history[pid].join(' ');
+  if (session.history[pid].length > 10) session.history[pid].shift();
+  const cumulativeText = session.history[pid].join(' ').slice(-100000);
   updateSolutionButton();
 
   const hasPersonalKey = !!(state.geminiApiKey && state.geminiApiKey.trim());
@@ -1000,7 +1032,7 @@ checkBtn.addEventListener('click', async () => {
       '✨ Formulating mentor feedback…'
     ];
     evalStageTimer = setInterval(() => {
-      if (stageIdx < stages.length) {
+      if (generation === evaluationGeneration && stageIdx < stages.length) {
         checkBtn.innerHTML = '<span class="ai-evaluating-state"><span class="ai-spinner"></span> ' + stages[stageIdx++] + '</span>';
       }
     }, 1200);
@@ -1016,13 +1048,16 @@ checkBtn.addEventListener('click', async () => {
     try {
       if (hasPersonalKey) {
         result = await callGeminiEvaluation(userText, cumulativeText, p, state.geminiApiKey, state.geminiModel, (statusText) => {
+          if (generation !== evaluationGeneration) return;
           checkBtn.innerHTML = '<span class="ai-evaluating-state"><span class="ai-spinner"></span> ' + escapeHtml(statusText) + '</span>';
         });
       } else {
         result = await callServerGeminiEvaluation(userText, cumulativeText, p, state.geminiModel, (statusText) => {
+          if (generation !== evaluationGeneration) return;
           checkBtn.innerHTML = '<span class="ai-evaluating-state"><span class="ai-spinner"></span> ' + escapeHtml(statusText) + '</span>';
         });
       }
+      result = validateEvaluation(result);
     } catch (err) {
       console.error('Gemini evaluation failed:', err);
       fallbackNotice = 'Gemini error: ' + (err.message || 'Network error') + '. (Using local Socratic engine for this attempt)';
@@ -1035,7 +1070,9 @@ checkBtn.addEventListener('click', async () => {
   }
 
   if (evalStageTimer) clearInterval(evalStageTimer);
-  if (currentProblem().id !== pid) return; // learner navigated away
+  if (generation !== evaluationGeneration || currentProblem().id !== pid) return;
+  evaluating = false;
+  updateSolutionButton();
   proofInput.readOnly = false;
   attemptBadge.textContent = 'Attempt ' + (session.attempts[pid] + 1);
   logActivity(activeCourseKey, pid, result.status === 'complete', result.status === 'complete' && stepStatus(activeCourseKey, pid) !== 'proved');
@@ -1064,7 +1101,7 @@ checkBtn.addEventListener('click', async () => {
     feedbackTitle.textContent = result.title || 'Proof complete!';
     feedbackExplanation.innerHTML = `
       <div class="mentor-feedback-flow">
-        <div class="ai-engine-tag ${isLiveGemini ? 'gemini' : 'local'}">${engineLabel}</div>
+        <div class="ai-engine-tag ${isLiveGemini ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
         ${fallbackNoticeHtml}
         <div class="mentor-section established">
           <div class="mentor-section-header">🌟 Why your proof works</div>
@@ -1075,6 +1112,7 @@ checkBtn.addEventListener('click', async () => {
     proofInput.readOnly = true;
     const isLast = currentStep >= coursesData[activeCourseKey].problems.length - 1;
     setCheckButton('advance', isLast ? 'Finish Lesson' : 'Next Step →', false);
+    celebrateProof(checkBtn);
   } else {
     renderMentorFeedback(result, pid);
     setCheckButton('submit', 'Check Again', true);
@@ -1109,19 +1147,20 @@ const appModalClose = document.getElementById('app-modal-close');
 // ==========================================
 let supabaseClient = null;
 let supabaseInitializedUrl = '';
-let currentUser = state.authUser || null;
+let currentUser = state.authUser?.isLocalFallback ? state.authUser : null;
+let authSubscription = null;
 let serverConfigLoaded = false;
 
 function getSupabaseConfig() {
-  const winCfg = { supabaseUrl: import.meta.env.VITE_SUPABASE_URL, supabaseAnonKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY, ...window.__VERITY_CONFIG__ };
-  const url = (winCfg.supabaseUrl || state.supabaseUrl || window.__VERITY_SUPABASE_URL__ || '').trim();
-  const key = (winCfg.supabaseAnonKey || state.supabaseAnonKey || window.__VERITY_SUPABASE_ANON_KEY__ || '').trim();
+  const config = window.__VERITY_CONFIG__ || {};
+  const url = (config.supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '').trim();
+  const key = (config.supabaseAnonKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
   const isConfigured = !!(url && key && !url.includes('xyzcompany') && !url.includes('YOUR_PROJECT'));
   return { url, key, isConfigured };
 }
 
 async function ensureServerConfig() {
-  if (serverConfigLoaded && getSupabaseConfig().isConfigured && supabaseClient) {
+  if (serverConfigLoaded) {
     return getSupabaseConfig();
   }
   try {
@@ -1164,6 +1203,17 @@ async function ensureServerConfig() {
 }
 
 function setActiveUser(user) {
+  const previousId = state.authUser?.id;
+  if (previousId && previousId !== user?.id) {
+    if (exerciseModal.classList.contains('active')) closeExercise();
+    archiveProgress(state);
+    Object.assign(state, { xp: 0, courses: {}, favorites: {}, activity: [], lastCourse: null });
+    Object.keys(session).forEach(key => { session[key] = {}; });
+    evaluationGeneration++;
+    evaluating = false;
+    updateXpDisplay();
+    document.querySelectorAll('.star-btn').forEach(button => button.classList.remove('favorited'));
+  }
   currentUser = user || null;
   if (currentUser) {
     state.authUser = {
@@ -1180,45 +1230,46 @@ function setActiveUser(user) {
   }
   saveState();
   updateAuthUi(currentUser);
+  if (homeView.classList.contains('active')) renderHome();
+  if (youView.classList.contains('active')) renderYou();
 }
 
 function initSupabase() {
   try {
     const cfg = getSupabaseConfig();
     if (cfg.isConfigured) {
-      if (!supabaseClient || supabaseInitializedUrl !== cfg.url) {
+      if (!supabaseClient || supabaseInitializedUrl !== cfg.url + cfg.key) {
+        authSubscription?.unsubscribe();
         supabaseClient = createClient(cfg.url, cfg.key);
-        supabaseInitializedUrl = cfg.url;
+        supabaseInitializedUrl = cfg.url + cfg.key;
 
         supabaseClient.auth.getSession().then(({ data }) => {
           if (data && data.session && data.session.user) {
             setActiveUser(data.session.user);
             fetchCloudState(data.session.user.id);
-          } else if (state.authUser) {
-            currentUser = state.authUser;
-            guestBypassActive = true;
-            updateAuthUi(currentUser);
+          } else if (state.authUser?.isLocalFallback) {
+            setActiveUser(state.authUser);
           } else {
-            updateAuthUi(null);
+            setActiveUser(null);
           }
         }).catch(() => {});
 
-        supabaseClient.auth.onAuthStateChange(async (event, session) => {
-          if (session && session.user) {
+        const { data: listener } = supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (session?.user) {
             setActiveUser(session.user);
             if (event === 'SIGNED_IN') {
-              await migrateGuestProgressToCloud(session.user.id);
-              await fetchCloudState(session.user.id);
+              setTimeout(async () => {
+                if (currentUser?.id !== session.user.id) return;
+                await fetchCloudState(session.user.id);
+                await migrateGuestProgressToCloud(session.user.id);
+              }, 0);
             }
-          } else if (event === 'SIGNED_OUT') {
-            if (!currentUser || !currentUser.isLocalFallback) {
-              setActiveUser(null);
-            }
-          }
+          } else if (event === 'SIGNED_OUT') setActiveUser(null);
         });
+        authSubscription = listener.subscription;
       }
     } else {
-      if (state.authUser) {
+      if (state.authUser?.isLocalFallback) {
         currentUser = state.authUser;
         guestBypassActive = true;
       }
@@ -1239,7 +1290,7 @@ function totalProvedCount() {
   return count;
 }
 
-let guestBypassActive = !!(state.authUser);
+let guestBypassActive = !!currentUser;
 
 function isGuestLimitReached() {
   if (guestBypassActive) return false;
@@ -1247,57 +1298,26 @@ function isGuestLimitReached() {
 }
 
 async function handleDemoLogin() {
-  const demoEmail = 'evaluator.demo@verity.app';
-  const demoPassword = 'DemoPassword2026!';
-  const demoName = 'Reviewer (Demo)';
-
-  await ensureServerConfig();
-  const cfg = getSupabaseConfig();
-  let resolvedUser = null;
-
-  if (cfg.isConfigured && supabaseClient) {
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword
-      });
-      if (!error && data && data.user) {
-        resolvedUser = data.user;
-      } else {
-        const { data: signUpData, error: signUpErr } = await supabaseClient.auth.signUp({
-          email: demoEmail,
-          password: demoPassword,
-          options: { data: { full_name: demoName } }
-        });
-        if (!signUpErr && signUpData && signUpData.user && signUpData.session) {
-          resolvedUser = signUpData.user;
-        }
-      }
-    } catch (_) {}
-  }
-
-  if (!resolvedUser) {
-    resolvedUser = {
-      id: 'demo-evaluator-id',
-      email: demoEmail,
-      user_metadata: { full_name: demoName },
-      isDemo: true,
-      isLocalFallback: true
-    };
-  }
-
-  setActiveUser(resolvedUser);
-  if (!resolvedUser.isLocalFallback) {
-    await migrateGuestProgressToCloud(resolvedUser.id);
-    await fetchCloudState(resolvedUser.id);
-  }
+  setActiveUser({ id: 'local-demo', email: '', user_metadata: { full_name: 'Demo Learner' }, isDemo: true, isLocalFallback: true });
   closeAppModal();
+}
+
+async function signOutAccount() {
+  try {
+    if (supabaseClient && currentUser && !currentUser.isLocalFallback) {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) throw error;
+    }
+    setActiveUser(null);
+    closeAppModal();
+    switchView('home');
+  } catch (error) { alert('Sign out failed: ' + error.message); }
 }
 
 function updateAuthUi(user) {
   if (user) {
     const name = user.user_metadata?.full_name || (user.email ? user.email.split('@')[0] : 'Learner');
-    if (navSyncPill) navSyncPill.style.display = 'inline';
+    if (navSyncPill) navSyncPill.style.display = user.isLocalFallback ? 'none' : 'inline';
     if (menuDemoLogin) menuDemoLogin.style.display = 'none';
     if (homeDemoBtn) homeDemoBtn.style.display = 'none';
 
@@ -1319,6 +1339,7 @@ function updateAuthUi(user) {
 
 function toggleMenu(force) {
   const open = typeof force === 'boolean' ? force : !menuDropdown.classList.contains('open');
+  if (!open && menuDropdown.contains(document.activeElement)) menuBtn.focus();
   menuDropdown.classList.toggle('open', open);
   menuDropdown.setAttribute('aria-hidden', String(!open));
   menuBtn.setAttribute('aria-expanded', String(open));
@@ -1349,6 +1370,7 @@ function buildModelOptionsHtml(modelsList, currentModel) {
 function openAppModal(type, initialTab) {
   toggleMenu(false);
   appModalBackdrop.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
   appModalBackdrop.setAttribute('aria-hidden', 'false');
 
   if (type === 'settings') {
@@ -1360,7 +1382,7 @@ function openAppModal(type, initialTab) {
       totalProved += provedCount(k);
     });
     const isLive = !!(state.serverGeminiActive || (state.geminiApiKey && state.geminiApiKey.trim()));
-    const curModel = state.geminiModel || 'gemini-3.5-flash-lite';
+    const curModel = state.geminiModel || 'gemini-2.5-flash-lite';
     const optionsHtml = buildModelOptionsHtml(state.geminiModels, curModel);
     const signedInName = currentUser
       ? (currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Learner'))
@@ -1372,8 +1394,9 @@ function openAppModal(type, initialTab) {
     const resetBtn = document.getElementById('btn-modal-reset');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        if (confirm('Reset all saved XP, proofs, and course progress?')) {
-          state = { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-3.5-flash-lite', geminiModels: [], supabaseUrl: state.supabaseUrl || '', supabaseAnonKey: state.supabaseAnonKey || '', serverGeminiActive: !!state.serverGeminiActive, authUser: state.authUser || null };
+        if (confirm('Reset progress cached on this device? Progress saved in your cloud account is kept.')) {
+          archiveProgress(state);
+          Object.assign(state, { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [] });
           saveState();
           Object.keys(session).forEach(k => { session[k] = {}; });
           updateXpDisplay();
@@ -1405,11 +1428,7 @@ function openAppModal(type, initialTab) {
     if (settingsAccountBtn) {
       settingsAccountBtn.addEventListener('click', () => {
         if (currentUser) {
-          if (supabaseClient) {
-            supabaseClient.auth.signOut().catch(() => {});
-          }
-          setActiveUser(null);
-          closeAppModal();
+          signOutAccount();
         } else {
           openAppModal('auth', 'signin');
         }
@@ -1458,8 +1477,9 @@ function openAppModal(type, initialTab) {
 
     async function handleAuthFormSubmit(e) {
       if (e) e.preventDefault();
+      if (submitAuthBtn.disabled) return;
       const email = emailInput.value.trim().toLowerCase();
-      const password = pwdInput.value.trim();
+      const password = pwdInput.value;
       const name = nameInput ? nameInput.value.trim() : '';
 
       if (!email || !password) {
@@ -1482,104 +1502,17 @@ function openAppModal(type, initialTab) {
 
       try {
         await ensureServerConfig();
-        const cfg = getSupabaseConfig();
-        const displayName = name || email.split('@')[0];
-
-        if (!cfg.isConfigured || !supabaseClient) {
-          const localUser = {
-            id: 'local-' + email.replace(/[^a-z0-9]/gi, ''),
-            email,
-            user_metadata: { full_name: displayName },
-            isLocalFallback: true
-          };
-          setActiveUser(localUser);
-          closeAppModal();
+        const result = await authenticate(supabaseClient, { mode: currentAuthMode, email, password, name });
+        if (result.confirmationRequired) {
+          statusMsg.style.display = 'block';
+          statusMsg.className = 'auth-status-msg success';
+          statusMsg.textContent = 'Check your email to confirm your account, then sign in.';
           return;
         }
-
-        if (currentAuthMode === 'signup') {
-          const { data, error } = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: { data: { full_name: displayName } }
-          });
-
-          if (error) {
-            if (/already registered|already exists|user_already_exists/i.test(error.message || '')) {
-              const { data: signInData, error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password });
-              if (!signInErr && signInData && signInData.user) {
-                setActiveUser(signInData.user);
-                await migrateGuestProgressToCloud(signInData.user.id);
-                await fetchCloudState(signInData.user.id);
-                closeAppModal();
-                return;
-              }
-              if (signInErr && /email not confirmed/i.test(signInErr.message || '')) {
-                const fallbackUser = { id: 'user-' + email.replace(/[^a-z0-9]/gi, ''), email, user_metadata: { full_name: displayName }, isLocalFallback: true };
-                setActiveUser(fallbackUser);
-                closeAppModal();
-                return;
-              }
-              throw new Error('This email is already registered. Please switch to Sign In or check your password.');
-            }
-            if (/rate limit|over_email_send_rate_limit/i.test(error.message || '')) {
-              const fallbackUser = { id: 'user-' + email.replace(/[^a-z0-9]/gi, ''), email, user_metadata: { full_name: displayName }, isLocalFallback: true };
-              setActiveUser(fallbackUser);
-              closeAppModal();
-              return;
-            }
-            throw error;
-          }
-
-          if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-            const { data: signInData, error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (!signInErr && signInData && signInData.user) {
-              setActiveUser(signInData.user);
-              await migrateGuestProgressToCloud(signInData.user.id);
-              await fetchCloudState(signInData.user.id);
-              closeAppModal();
-              return;
-            }
-          }
-
-          const activeUserObj = (data && data.user)
-            ? Object.assign({}, data.user, { isLocalFallback: !data.session, user_metadata: Object.assign({ full_name: displayName }, data.user.user_metadata || {}) })
-            : { id: 'user-' + email.replace(/[^a-z0-9]/gi, ''), email, user_metadata: { full_name: displayName }, isLocalFallback: true };
-
-          setActiveUser(activeUserObj);
-          if (data && data.session && data.user) {
-            await migrateGuestProgressToCloud(data.user.id);
-            await fetchCloudState(data.user.id);
-          }
-          closeAppModal();
-        } else {
-          const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-          });
-
-          if (error) {
-            if (/email not confirmed/i.test(error.message || '')) {
-              const fallbackUser = {
-                id: (state.authUser && state.authUser.email === email && state.authUser.id) ? state.authUser.id : ('user-' + email.replace(/[^a-z0-9]/gi, '')),
-                email,
-                user_metadata: { full_name: (state.authUser && state.authUser.user_metadata && state.authUser.user_metadata.full_name) || displayName },
-                isLocalFallback: true
-              };
-              setActiveUser(fallbackUser);
-              closeAppModal();
-              return;
-            }
-            throw error;
-          }
-
-          if (data && data.user) {
-            setActiveUser(data.user);
-            await migrateGuestProgressToCloud(data.user.id);
-            await fetchCloudState(data.user.id);
-            closeAppModal();
-          }
-        }
+        setActiveUser(result.user);
+        await fetchCloudState(result.user.id);
+        await migrateGuestProgressToCloud(result.user.id);
+        closeAppModal();
       } catch (err) {
         statusMsg.style.display = 'block';
         statusMsg.className = 'auth-status-msg error';
@@ -1591,7 +1524,7 @@ function openAppModal(type, initialTab) {
     }
 
     if (authForm) authForm.addEventListener('submit', handleAuthFormSubmit);
-    submitAuthBtn.addEventListener('click', handleAuthFormSubmit);
+
   } else if (type === 'guest-gate') {
     appModalTitle.textContent = 'Milestone Reached!';
     appModalBody.innerHTML = renderGuestGate();
@@ -1612,10 +1545,15 @@ function openAppModal(type, initialTab) {
     });
     if (gateDismiss) gateDismiss.addEventListener('click', closeAppModal);
   }
+  appModalClose.focus();
 }
 
 function closeAppModal() {
+  if (appModalBackdrop.contains(document.activeElement)) {
+    (exerciseModal.classList.contains('active') ? proofInput : menuBtn).focus();
+  }
   appModalBackdrop.style.display = 'none';
+  document.body.style.overflow = exerciseModal.classList.contains('active') ? 'hidden' : '';
   appModalBackdrop.setAttribute('aria-hidden', 'true');
 }
 
@@ -1623,6 +1561,8 @@ appModalClose.addEventListener('click', closeAppModal);
 appModalBackdrop.addEventListener('click', (e) => {
   if (e.target === appModalBackdrop) closeAppModal();
 });
+
+document.getElementById('menu-settings').addEventListener('click', () => openAppModal('settings'));
 
 menuAbout.addEventListener('click', () => openAppModal('about'));
 menuHelp.addEventListener('click', () => openAppModal('help'));
@@ -1641,19 +1581,22 @@ if (homeDemoBtn) {
 menuAuthAction.addEventListener('click', () => {
   toggleMenu(false);
   if (currentUser) {
-    if (supabaseClient) {
-      supabaseClient.auth.signOut().catch(() => {});
-    }
-    setActiveUser(null);
+    signOutAccount();
   } else {
     openAppModal('auth', 'signin');
   }
 });
 
 document.addEventListener('keydown', (e) => {
+  const dialog = appModalBackdrop.style.display === 'flex' ? appModalBackdrop
+    : solutionModal.style.display === 'flex' ? solutionModal
+    : exerciseModal.classList.contains('active') ? exerciseModal : null;
+  trapDialogFocus(e, dialog);
   if (e.key === 'Escape') {
-    toggleMenu(false);
-    closeAppModal();
+    if (appModalBackdrop.style.display === 'flex') closeAppModal();
+    else if (solutionModal.style.display === 'flex') closeSolution();
+    else if (exerciseModal.classList.contains('active')) closeExercise();
+    else toggleMenu(false);
   }
 });
 
@@ -1670,7 +1613,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   const hash = window.location.hash.replace('#', '');
-  switchView(hash || 'topics', false);
+  switchView(hash || 'home', false);
 })();
 
 

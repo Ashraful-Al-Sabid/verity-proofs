@@ -59,4 +59,4 @@ Import this repository into Vercel and keep the project root at the repository r
 
 Configure the Supabase variables above and server-only `GEMINI_API_KEY` (or the existing `GOOGLE_GEMINI_API_KEY` alias), then deploy. Redeploy after changing `VITE_` variables because those are embedded at build time. Never prefix server secrets with `VITE_` or `NEXT_PUBLIC_`.
 
-Live sign-in, cloud persistence, and AI responses require your own configured services. Existing demo/local account fallbacks and the personal Gemini-key setting are retained; local accounts are not authenticated Supabase sessions. This refactor does not add API authentication or rate limiting to the existing evaluation endpoint.
+Live sign-in, cloud persistence, and AI responses require your own configured services. Demo mode is explicitly local and never uses a shared cloud account. Real sign-in requires a valid Supabase session; sign-up with email confirmation enabled asks the learner to confirm before signing in. Local account progress is archived on sign-out to keep it separate from the next account. This refactor does not add API authentication or rate limiting to the existing evaluation endpoint.

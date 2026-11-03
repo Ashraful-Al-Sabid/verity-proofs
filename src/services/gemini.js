@@ -1,3 +1,4 @@
+import { validateEvaluation } from '../lib/evaluation-result.js';
 import { stepMeta } from '../data/rubrics.js';
 
 export function createGeminiService({ getState, saveState, updateAiStatusBadge }) {
@@ -342,7 +343,7 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
       if (typeof evalResult.total !== 'number') evalResult.total = Math.max(evalResult.done, (rubric && rubric.steps ? rubric.steps.length : 2) + 1);
       evalResult.engine = 'gemini';
       evalResult.modelName = respondedModel;
-      return evalResult;
+      return validateEvaluation(evalResult);
     } catch (err) {
       if (err.name === 'AbortError') {
         throw new Error('Gemini request timed out after 50s. Check network connection.');
@@ -402,7 +403,7 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
         saveState();
         updateAiStatusBadge();
       }
-      return data;
+      return validateEvaluation(data);
     } finally {
       clearTimeout(timeoutId);
     }

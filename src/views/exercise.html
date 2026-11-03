@@ -1,5 +1,5 @@
     <!-- Interactive Lesson & Exercises Overlay / Modal View (Matching Screenshot Layout) -->
-    <div id="exercise-modal" class="exercise-modal" aria-hidden="true">
+    <div id="exercise-modal" class="exercise-modal" role="dialog" aria-modal="true" aria-labelledby="question-headline" aria-hidden="true">
       <div class="exercise-container">
         
         <!-- Top Control Bar (Close, Segmented Progress, Streak Counter) -->
@@ -31,7 +31,7 @@
         </header>
 
         <!-- Main Exercise Area (Top Box: Material/Question, Bottom Box: Answering) -->
-        <main class="exercise-body">
+        <div class="exercise-body">
           
           <!-- Box 1: Learning Material / Question Card -->
           <div class="exercise-box material-box" id="material-box">
@@ -61,10 +61,6 @@
               <div class="answering-toolbar">
                 <div class="toolbar-left">
                   <span class="attempt-badge" id="attempt-badge">Attempt 1</span>
-                  <button type="button" class="gemini-status-badge" id="btn-ai-status" title="Configure AI Mentor">
-                    <span class="ai-status-dot offline" id="ai-status-dot"></span>
-                    <span id="ai-status-label">Rule-based (Connect Gemini)</span>
-                  </button>
                 </div>
                 <div class="toolbar-right">
                   <button type="button" class="tool-btn" id="btn-request-hint" title="Request curated conceptual hint">
@@ -91,13 +87,14 @@
                 <label for="user-proof-input" class="input-label">Your Mathematical Proof & Argument:</label>
               </div>
               <textarea 
-                id="user-proof-input" 
+                id="user-proof-input"
+                maxlength="20000"
                 class="proof-textarea" 
                 placeholder="State your conclusion clearly, specify the mathematical invariant, setup any definitions, and build your deductive steps..." 
                 rows="4"
               ></textarea>
               <div class="input-footer">
-                <span class="hint-text">💡 Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to submit for Olympiad mentor evaluation</span>
+                <span class="hint-text">💡 Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to submit</span>
                 <span class="char-count" id="char-count">0 words</span>
               </div>
             </div>
@@ -106,15 +103,15 @@
           <!-- Box 3: Course / Lesson Completion Summary Card -->
           <div class="exercise-box lesson-complete-card" id="lesson-complete" style="display: none;"></div>
 
-        </main>
+        </div>
 
         <!-- Bottom Check / Continue Footer Bar -->
         <footer class="exercise-footer">
-          <div class="feedback-message" id="feedback-message">
+          <div class="feedback-message" id="feedback-message" role="status" aria-live="polite">
             <div class="feedback-icon" id="feedback-icon"></div>
             <div class="feedback-text-wrap" id="feedback-text-wrap">
               <h4 class="feedback-title" id="feedback-title"></h4>
-              <p class="feedback-explanation" id="feedback-explanation"></p>
+              <div class="feedback-explanation" id="feedback-explanation"></div>
             </div>
           </div>
 
