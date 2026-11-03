@@ -75,6 +75,10 @@
               </div>
               <span class="menu-user-email" id="menu-user-email">user@example.com</span>
             </div>
+            <button type="button" class="dropdown-demo-item" id="menu-demo-login" role="menuitem">
+              <span style="font-size:1.1rem;">⚡</span>
+              <span>1-Click Demo Sign In</span>
+            </button>
             <button type="button" class="dropdown-item" id="menu-auth-action" role="menuitem">Sign In / Sign Up</button>
             <div class="dropdown-divider"></div>
             <button type="button" class="dropdown-item" id="menu-settings" role="menuitem">Settings</button>
@@ -118,6 +122,9 @@
             <div class="home-cta-row">
               <button type="button" class="popup-start-btn home-cta-primary" id="home-continue-btn">Start with Parity</button>
               <a href="#topics" class="home-cta-secondary" id="home-browse-topics">Browse all topics <span aria-hidden="true">→</span></a>
+              <button type="button" class="home-cta-demo" id="home-demo-btn">
+                <span>⚡</span> 1-Click Demo Sign In
+              </button>
             </div>
           </div>
           <div class="home-hero-mascot">
@@ -3327,6 +3334,8 @@
     const menuUserName = document.getElementById('menu-user-name');
     const menuUserEmail = document.getElementById('menu-user-email');
     const menuAuthAction = document.getElementById('menu-auth-action');
+    const menuDemoLogin = document.getElementById('menu-demo-login');
+    const homeDemoBtn = document.getElementById('home-demo-btn');
 
     const appModalBackdrop = document.getElementById('app-modal-backdrop');
     const appModalTitle = document.getElementById('app-modal-title');
@@ -3445,6 +3454,8 @@
       if (user) {
         const name = user.user_metadata?.full_name || (user.email ? user.email.split('@')[0] : 'Learner');
         if (navSyncPill) navSyncPill.style.display = 'inline';
+        if (menuDemoLogin) menuDemoLogin.style.display = 'none';
+        if (homeDemoBtn) homeDemoBtn.style.display = 'none';
 
         menuUserHeader.style.display = 'flex';
         menuUserName.textContent = name;
@@ -3453,6 +3464,8 @@
         menuLogout.textContent = 'Clear Local Cache';
       } else {
         if (navSyncPill) navSyncPill.style.display = 'none';
+        if (menuDemoLogin) menuDemoLogin.style.display = 'flex';
+        if (homeDemoBtn) homeDemoBtn.style.display = 'inline-flex';
 
         menuUserHeader.style.display = 'none';
         menuUserName.textContent = 'Learner';
@@ -4209,6 +4222,17 @@
     menuSettings.addEventListener('click', () => openAppModal('settings'));
     menuAbout.addEventListener('click', () => openAppModal('about'));
     menuHelp.addEventListener('click', () => openAppModal('help'));
+
+    if (menuDemoLogin) {
+      menuDemoLogin.addEventListener('click', async () => {
+        toggleMenu(false);
+        await handleDemoLogin();
+      });
+    }
+
+    if (homeDemoBtn) {
+      homeDemoBtn.addEventListener('click', handleDemoLogin);
+    }
 
     menuAuthAction.addEventListener('click', () => {
       toggleMenu(false);

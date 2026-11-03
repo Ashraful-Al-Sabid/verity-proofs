@@ -2,14 +2,21 @@
 // Keeps your private GEMINI_API_KEY hidden from browser clients.
 
 const DEFAULT_MODELS = [
-  'gemini-3.8-flash',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash'
+  'gemini-1.5-flash',
+  'gemini-1.5-pro'
 ];
 
+function resolveRealModelName(model) {
+  const clean = (model || 'gemini-2.5-flash').replace(/^models\//, '').trim();
+  if (!clean || clean === 'gemini-3.8-flash' || clean === 'gemini-3.6-flash') {
+    return 'gemini-2.5-flash';
+  }
+  return clean;
+}
+
 export default async function handler(req, res) {
-  // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -22,25 +29,37 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_GEMINI_API_KEY ||
+    process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+    ''
+  ).trim();
+
   if (!apiKey) {
-    return res.status(500).json({ 
-      error: 'Server GEMINI_API_KEY is not configured in Vercel environment variables.' 
+    return res.status(500).json({
+      error: 'Server GEMINI_API_KEY is not configured in Vercel environment variables.',
+      fallbackToLocal: true
     });
   }
 
   try {
-    const { userText, cumulativeText, problem, rubric, model } = req.body || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const { userText, cumulativeText, problem, rubric, model } = body;
 
     if (!userText || !problem) {
       return res.status(400).json({ error: 'Missing required proof text or problem definition.' });
     }
 
-    const canonicalSolution = problem.curatedSolution || '';
-    const expectedClaim = rubric 
+    const canonicalSolution = problem.curatedSolution
+      ? (typeof problem.curatedSolution === 'string'
+          ? problem.curatedSolution
+          : JSON.stringify(problem.curatedSolution))
+      : '';
+    const expectedClaim = rubric
       ? (rubric.answer === 'yes' ? 'Affirmative / Yes (possible)' : rubric.answer === 'no' ? 'Negative / No (impossible)' : rubric.answer === 'value' ? 'Exact value' : 'Direct proof')
       : 'Rigorous deductive proof';
-    const rubricSteps = rubric && rubric.steps 
+    const rubricSteps = rubric && rubric.steps
       ? rubric.steps.map((s, i) => (i + 1) + '. ' + s.label).join('; ')
       : 'Deductive mathematical argument';
 
@@ -70,7 +89,7 @@ export default async function handler(req, res) {
       }
     };
 
-    const targetModel = (model || 'gemini-3.8-flash').replace(/^models\//, '');
+    const targetModel = resolveRealModelName(model);
     const candidateModels = [targetModel, ...DEFAULT_MODELS.filter(m => m !== targetModel)];
 
     let activeRes = null;
@@ -133,9 +152,9 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Server Gemini evaluation error:', err);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: err.message || 'Evaluation error',
-      fallbackToLocal: true 
+      fallbackToLocal: true
     });
   }
 }
