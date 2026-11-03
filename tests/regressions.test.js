@@ -6,12 +6,38 @@ import { validateEvaluation } from '../src/lib/evaluation-result.js';
 import { createProgressService } from '../src/services/progress.js';
 import evaluateHandler from '../api/evaluate.js';
 import { celebrateProof, stopCelebration } from '../src/lib/celebration.js';
+import { guestLimitReached, recordGuestSubmission } from '../src/lib/guest-access.js';
+import { renderGuestGate } from '../src/views/dialogs/guestGate.js';
 
 test('sign-up without a session asks for email confirmation instead of signing in', async () => {
   const result = await authenticate({ auth: { signUp: async () => ({ data: { user: { id: 'unconfirmed' }, session: null } }) } },
     { mode: 'signup', email: 'learner@example.com', password: 'secret' });
   assert.equal(result.confirmationRequired, true);
   assert.equal(result.user, null);
+});
+
+test('guests get exactly one submission attempt, regardless of correctness', () => {
+  const state = { guestSubmissions: 0 };
+  assert.equal(guestLimitReached(state, null), false);
+  recordGuestSubmission(state, null);
+  assert.equal(guestLimitReached(state, null), true);
+  assert.equal(guestLimitReached(state, { isLocalFallback: true }), true);
+  assert.equal(guestLimitReached(state, { id: 'demo', isLocalFallback: true, isDemo: true }), false);
+  assert.equal(guestLimitReached(state, { id: 'authenticated' }), false);
+  recordGuestSubmission(state, { id: 'demo', isLocalFallback: true, isDemo: true });
+  assert.equal(state.guestSubmissions, 1);
+  assert.equal(guestLimitReached(state, null), true);
+  assert.ok(!renderGuestGate().includes('btn-gate-continue-guest'));
+});
+
+test('the guest limit survives reload and recognizes existing guest attempts', () => {
+  let value = JSON.stringify({ guestSubmissions: 1, activity: [] });
+  globalThis.localStorage = { getItem: () => value };
+  try {
+    assert.equal(guestLimitReached(loadState(), null), true);
+    value = JSON.stringify({ activity: [{ t: Date.now(), ok: false }] });
+    assert.equal(guestLimitReached(loadState(), null), true);
+  } finally { delete globalThis.localStorage; }
 });
 
 test('authentication preserves password whitespace and does not mask provider errors', async () => {

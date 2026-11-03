@@ -1,3 +1,4 @@
+import { guestLimitReached, recordGuestSubmission } from './lib/guest-access.js';
 import { trapDialogFocus } from './lib/dialog.js';
 import { validateEvaluation } from './lib/evaluation-result.js';
 import { authenticate } from './services/auth.js';
@@ -1003,11 +1004,13 @@ checkBtn.addEventListener('click', async () => {
   const userText = proofInput.value.trim();
   if (!userText || userText === session.lastSubmitted[pid]) return;
 
-  if (isGuestLimitReached() && stepStatus(activeCourseKey, pid) !== 'proved') {
+  if (isGuestLimitReached()) {
     openAppModal('guest-gate');
     return;
   }
 
+  recordGuestSubmission(state, currentUser);
+  saveState();
   const generation = ++evaluationGeneration;
   evaluating = true;
   session.lastSubmitted[pid] = userText;
@@ -1119,6 +1122,7 @@ checkBtn.addEventListener('click', async () => {
     refreshSubmitState();
     proofInput.focus();
   }
+  if (isGuestLimitReached()) openAppModal('guest-gate');
 });
 
 // ==========================================
@@ -1135,7 +1139,6 @@ const menuUserName = document.getElementById('menu-user-name');
 const menuUserEmail = document.getElementById('menu-user-email');
 const menuAuthAction = document.getElementById('menu-auth-action');
 const menuDemoLogin = document.getElementById('menu-demo-login');
-const homeDemoBtn = document.getElementById('home-demo-btn');
 
 const appModalBackdrop = document.getElementById('app-modal-backdrop');
 const appModalTitle = document.getElementById('app-modal-title');
@@ -1223,10 +1226,8 @@ function setActiveUser(user) {
       isDemo: !!currentUser.isDemo,
       isLocalFallback: !!currentUser.isLocalFallback
     };
-    guestBypassActive = true;
   } else {
     state.authUser = null;
-    guestBypassActive = false;
   }
   saveState();
   updateAuthUi(currentUser);
@@ -1271,7 +1272,6 @@ function initSupabase() {
     } else {
       if (state.authUser?.isLocalFallback) {
         currentUser = state.authUser;
-        guestBypassActive = true;
       }
       updateAuthUi(currentUser);
     }
@@ -1280,21 +1280,8 @@ function initSupabase() {
   }
 }
 
-function totalProvedCount() {
-  let count = 0;
-  if (state && state.courses) {
-    Object.keys(state.courses).forEach(k => {
-      count += Object.keys(state.courses[k] || {}).filter(id => state.courses[k][id] === 'proved').length;
-    });
-  }
-  return count;
-}
-
-let guestBypassActive = !!currentUser;
-
 function isGuestLimitReached() {
-  if (guestBypassActive) return false;
-  return !currentUser && totalProvedCount() >= 1;
+  return guestLimitReached(state, currentUser);
 }
 
 async function handleDemoLogin() {
@@ -1319,7 +1306,6 @@ function updateAuthUi(user) {
     const name = user.user_metadata?.full_name || (user.email ? user.email.split('@')[0] : 'Learner');
     if (navSyncPill) navSyncPill.style.display = user.isLocalFallback ? 'none' : 'inline';
     if (menuDemoLogin) menuDemoLogin.style.display = 'none';
-    if (homeDemoBtn) homeDemoBtn.style.display = 'none';
 
     menuUserHeader.style.display = 'flex';
     menuUserName.textContent = name;
@@ -1328,7 +1314,6 @@ function updateAuthUi(user) {
   } else {
     if (navSyncPill) navSyncPill.style.display = 'none';
     if (menuDemoLogin) menuDemoLogin.style.display = 'flex';
-    if (homeDemoBtn) homeDemoBtn.style.display = 'inline-flex';
 
     menuUserHeader.style.display = 'none';
     menuUserName.textContent = 'Learner';
@@ -1526,23 +1511,17 @@ function openAppModal(type, initialTab) {
     if (authForm) authForm.addEventListener('submit', handleAuthFormSubmit);
 
   } else if (type === 'guest-gate') {
-    appModalTitle.textContent = 'Milestone Reached!';
+    appModalTitle.textContent = 'Login to Continue';
     appModalBody.innerHTML = renderGuestGate();
 
     const gateDemo = document.getElementById('btn-gate-demo');
     const gateSignUp = document.getElementById('btn-gate-signup');
     const gateSignIn = document.getElementById('btn-gate-signin');
-    const gateContinueGuest = document.getElementById('btn-gate-continue-guest');
     const gateDismiss = document.getElementById('btn-gate-dismiss');
 
     if (gateDemo) gateDemo.addEventListener('click', handleDemoLogin);
     if (gateSignUp) gateSignUp.addEventListener('click', () => openAppModal('auth', 'signup'));
     if (gateSignIn) gateSignIn.addEventListener('click', () => openAppModal('auth', 'signin'));
-    if (gateContinueGuest) gateContinueGuest.addEventListener('click', () => {
-      guestBypassActive = true;
-      closeAppModal();
-      if (checkMode === 'advance') goNext();
-    });
     if (gateDismiss) gateDismiss.addEventListener('click', closeAppModal);
   }
   appModalClose.focus();
@@ -1572,10 +1551,6 @@ if (menuDemoLogin) {
     toggleMenu(false);
     await handleDemoLogin();
   });
-}
-
-if (homeDemoBtn) {
-  homeDemoBtn.addEventListener('click', handleDemoLogin);
 }
 
 menuAuthAction.addEventListener('click', () => {
@@ -1615,5 +1590,4 @@ document.addEventListener('keydown', (e) => {
   const hash = window.location.hash.replace('#', '');
   switchView(hash || 'home', false);
 })();
-
 

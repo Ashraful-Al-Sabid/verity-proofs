@@ -106,21 +106,33 @@
 .home-cta-secondary {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 26px;
+  border: 1px solid rgba(251, 146, 60, 0.55);
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.9), rgba(254, 215, 170, 0.65));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 5px 16px rgba(234, 88, 12, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   font-family: var(--font-sans);
   font-size: 0.98rem;
   font-weight: 600;
-  color: #27272a;
-  text-decoration: underline;
-  text-decoration-color: #d4d4d8;
-  text-underline-offset: 6px;
-  padding: 10px 4px;
-  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+  color: #9a3412;
+  text-decoration: none;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
 .home-cta-secondary:hover {
-  color: #ea580c;
-  text-decoration-color: #ea580c;
+  color: #7c2d12;
+  background: linear-gradient(180deg, rgba(255, 237, 213, 0.95), rgba(253, 186, 116, 0.7));
+  box-shadow: 0 7px 20px rgba(234, 88, 12, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.home-cta-secondary:focus-visible {
+  outline: 3px solid #f97316;
+  outline-offset: 4px;
 }
 
 .home-hero-mascot {
@@ -453,4 +465,3 @@
   font-weight: 800;
   color: #0f172a;
 }
-

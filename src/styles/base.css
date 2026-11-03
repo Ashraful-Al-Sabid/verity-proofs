@@ -281,31 +281,6 @@ body {
   color: #38bdf8;
 }
 
-.home-cta-demo {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 52px;
-  padding: 0 24px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #ffffff;
-  border: 1px solid #334155;
-  border-radius: 9999px;
-  font-family: var(--font-sans);
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
-}
-
-.home-cta-demo:hover {
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  transform: translateY(-1px);
-  color: #38bdf8;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.24);
-}
-
 .dropdown-divider {
   height: 1px;
   background-color: #f1f5f9;
@@ -413,4 +388,3 @@ body {
   .brand-logo { font-size: 1.15rem; gap: 4px; }
   .navbar { gap: 4px; }
 }
-

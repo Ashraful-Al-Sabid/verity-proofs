@@ -1,11 +1,10 @@
 export function renderGuestGate() {
   return `
       <div class="guest-gate-card">
-        <div class="guest-gate-badge">🎉</div>
-        <h4 class="guest-gate-title">First Proof Complete!</h4>
+        <div class="guest-gate-badge">🔐</div>
+        <h4 class="guest-gate-title">Log in to keep practicing</h4>
         <p class="guest-gate-desc">
-          You've constructed and completed your first rigorous mathematical proof on Verity.
-          To save your earned XP, track your streak, and unlock the remaining 20 interactive proofs, create your free account or sign in now.
+          You've used your free proof submission. Sign in, create an account, or choose Demo Login to submit another attempt.
         </p>
 
         <div class="guest-gate-features">
@@ -19,7 +18,7 @@ export function renderGuestGate() {
           </div>
           <div class="guest-feature-item">
             <span>🧠</span>
-            <span><strong>20 more challenges:</strong> Invariants, Pigeonhole Principle, Proof Foundations & more.</span>
+            <span><strong>Keep practicing:</strong> Revise your proof and explore all 21 challenges.</span>
           </div>
           <div class="guest-feature-item">
             <span>✨</span>
@@ -31,7 +30,7 @@ export function renderGuestGate() {
           <button type="button" id="btn-gate-demo" class="btn-demo-signin" style="margin-bottom:6px;">
             <span class="btn-demo-icon">⚡</span>
             <div class="btn-demo-text">
-              <span class="btn-demo-title">Try Demo</span>
+              <span class="btn-demo-title">Demo Login</span>
               <span class="btn-demo-sub">Explore all 21 proofs on this device</span>
             </div>
           </button>
@@ -41,11 +40,8 @@ export function renderGuestGate() {
           <button type="button" id="btn-gate-signin" class="btn-guest-signin">
             Sign In to Existing Account
           </button>
-          <button type="button" id="btn-gate-continue-guest" class="btn-guest-continue">
-            Continue as Guest (Keep Testing Proofs)
-          </button>
           <button type="button" id="btn-gate-dismiss" class="btn-guest-dismiss">
-            Review My Solved Proof
+            View My Feedback
           </button>
         </div>
       </div>
