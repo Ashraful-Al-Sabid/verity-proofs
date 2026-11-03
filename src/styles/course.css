@@ -1,0 +1,400 @@
+/* Dedicated Parity Page Layout */
+.parity-page-wrapper {
+  width: 100%;
+  max-width: 1040px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Breadcrumb Navigation */
+.page-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: #ea580c;
+  font-weight: 600;
+  padding: 6px 14px;
+  background-color: #fff7ed;
+  border: 1px solid #ffedd5;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.back-link:hover {
+  background-color: #ffedd5;
+  border-color: #fed7aa;
+  transform: translateX(-3px);
+}
+
+.back-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.crumb-separator {
+  color: #cbd5e1;
+}
+
+.crumb-current {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+/* =========================================
+   PARITY TORTUOUS LEARNING PATH LAYOUT
+   ========================================= */
+
+.parity-path-tray {
+  display: flex;
+  align-items: flex-start;
+  gap: 48px;
+  background-color: #fafbfc;
+  border: 1px solid #edf2f7;
+  border-radius: 28px;
+  padding: 36px 36px 48px 36px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Left: Course Card */
+.parity-course-card {
+  width: 310px;
+  flex-shrink: 0;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 28px 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  position: sticky;
+  top: 80px;
+}
+
+.course-card-graphic {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.course-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.course-card-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+
+.course-card-desc {
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.55;
+  margin-bottom: 24px;
+}
+
+.course-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 18px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.meta-icon {
+  width: 16px;
+  height: 16px;
+  color: #ea580c;
+}
+
+/* Right: Learning Path Container */
+.parity-path-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+/* Level Banner (Matching Screenshot 1 with Blue Border & Blue LEVEL 1) */
+.path-section-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 48px;
+  background-color: #ffffff;
+  border: 2px solid #3b82f6;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.08);
+  margin-bottom: 36px;
+  text-align: center;
+  width: fit-content;
+}
+
+.banner-level {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.banner-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Winding Tortuous Track Canvas */
+.winding-path-track {
+  position: relative;
+  width: 480px;
+  height: 600px;
+  margin-bottom: 24px;
+}
+
+/* Continuous S-Curve SVG connecting nodes */
+.tortuous-svg-trail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Stepping Nodes */
+.path-node {
+  position: absolute;
+  width: 100px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.path-node:hover {
+  transform: scale(1.05);
+}
+
+.node-pedestal-wrapper {
+  position: relative;
+  width: 100px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Glowing Blue Ring for Active Node */
+.active-blue-ring-wrap {
+  position: relative;
+  width: 96px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blue-ring-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Floating Verity Mascot on Active / Current Lesson Node */
+.active-mascot-float {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 58px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10;
+  animation: floatMascot 3s ease-in-out infinite;
+  filter: drop-shadow(0 10px 16px rgba(234, 88, 12, 0.42)) drop-shadow(0 3px 6px rgba(194, 65, 12, 0.22));
+}
+
+.mascot-float-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+@keyframes floatMascot {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-8px) rotate(2deg);
+  }
+}
+
+/* Floating Green Gem */
+.active-green-gem {
+  position: absolute;
+  top: -26px;
+  width: 44px;
+  height: 44px;
+  animation: floatGem 3s ease-in-out infinite;
+  filter: drop-shadow(0 6px 12px rgba(16, 185, 129, 0.45));
+}
+
+@keyframes floatGem {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+.green-gem-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Grey 3D Metallic Pedestal */
+.grey-pedestal-wrap {
+  width: 90px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grey-pedestal-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 3D Dumbbell Badge on Practice Node */
+.node-dumbbell-badge {
+  position: absolute;
+  top: -24px;
+  right: -12px;
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 6px 10px rgba(244, 63, 94, 0.35));
+  animation: floatDumbbell 3s ease-in-out infinite 0.5s;
+}
+
+@keyframes floatDumbbell {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
+}
+
+.dumbbell-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Node Labels - Strictly on the Right matching Screenshot 1 */
+.node-label {
+  position: absolute;
+  left: 110px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.node-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.01em;
+}
+
+.node-sub {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Floating Action Card at the bottom (Variables / Start) */
+.path-action-popup {
+  width: 380px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  padding: 26px 32px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
+  text-align: center;
+  position: relative;
+  z-index: 10;
+  margin-top: -20px;
+  transition: all 0.25s ease;
+}
+
+.popup-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.popup-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.45;
+  margin-bottom: 20px;
+}
+
+.popup-start-btn {
+  width: 100%;
+  height: 52px;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+  transition: all 0.18s ease;
+}
+
+.popup-start-btn:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.45);
+}
+

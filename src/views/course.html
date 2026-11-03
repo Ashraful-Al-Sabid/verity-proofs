@@ -1,0 +1,87 @@
+    <!-- Dedicated Full Course Page View (Dynamic for Parity, Invariant, Pigeonhole, Proof Foundations) -->
+    <section id="course-view" class="page-view" aria-label="Course Learning Track Page">
+      <div class="parity-page-wrapper">
+        
+        <!-- Breadcrumb / Back Navigation Bar -->
+        <div class="page-breadcrumb">
+          <a href="#topics" class="back-link" id="back-to-topics">
+            <svg viewBox="0 0 24 24" class="back-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Topics</span>
+          </a>
+          <span class="crumb-separator">/</span>
+          <span class="crumb-sub" id="crumb-category">Problem Solving Strategies</span>
+          <span class="crumb-separator">/</span>
+          <span class="crumb-current" id="crumb-course-title">Course</span>
+        </div>
+
+        <!-- 2-Column Learning Track (Overview Card + Winding Serpentine Path) -->
+        <div class="parity-path-tray">
+          
+          <!-- Left Sidebar: Course Overview Card -->
+          <div class="parity-course-card">
+            <div class="course-card-graphic">
+              <img id="course-card-img" src="assets/parity.png" alt="Course Graphic" class="course-card-img">
+            </div>
+            <h3 class="course-card-title" id="course-card-title">Parity</h3>
+            <p class="course-card-desc" id="course-card-desc">
+              Course overview description.
+            </p>
+            <div class="course-card-meta">
+              <div class="meta-item">
+                <svg viewBox="0 0 24 24" class="meta-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span id="course-card-sections">68 Lessons</span>
+              </div>
+              <div class="meta-item">
+                <svg viewBox="0 0 24 24" class="meta-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 5v14M18 5v14M2 9v6M22 9v6M6 12h12"></path>
+                </svg>
+                <span id="course-card-challenges">1200 Exercises</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Tortuous Meandering Learning Path -->
+          <div class="parity-path-container">
+            
+            <!-- Section Header Banner (Matching Screenshot 1) -->
+            <div class="path-section-banner">
+              <span class="banner-level" id="path-banner-level">LEVEL 1</span>
+              <span class="banner-title" id="path-banner-title">Alternations & Invariants</span>
+            </div>
+
+            <!-- Winding Path Canvas -->
+            <div class="winding-path-track">
+              
+              <!-- Continuous Tortuous SVG Trail Line connecting all nodes -->
+              <svg class="tortuous-svg-trail" viewBox="0 0 480 600" preserveAspectRatio="none">
+                <path class="trail-glow" d="" fill="none" stroke="#ffedd5" stroke-width="12" stroke-linecap="round" opacity="0.8"/>
+                <path class="trail-core" d="" fill="none" stroke="#ea580c" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="6 8"/>
+              </svg>
+
+              <!-- Dynamic Nodes Container -->
+              <div id="dynamic-path-nodes">
+                <!-- Rendered dynamically -->
+              </div>
+
+            </div>
+
+            <!-- Floating Bottom Action Start Card (Matching Screenshot 1) -->
+            <div class="path-action-popup" id="parity-action-card">
+              <span class="popup-meta" id="popup-node-meta">Step 1 of 6 · Concept</span>
+              <h4 class="popup-title" id="popup-node-title">What is Parity?</h4>
+              <p class="popup-desc" id="popup-node-desc">Explore alternating structures, cycles, and parity invariants.</p>
+              <button class="popup-start-btn" id="start-lesson-btn">Start</button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+

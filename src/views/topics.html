@@ -1,0 +1,275 @@
+    <!-- Topics View (Course List) -->
+    <section id="you-view" class="page-view" aria-label="Your Learning Activity">
+      <div class="you-wrapper">
+        <h2 class="you-heading">Your learning activity</h2>
+
+        <div class="you-summary-card">
+          <div class="you-summary-text">
+            <h3 class="you-summary-title" id="you-summary-title">Weekly summary</h3>
+            <span class="you-summary-range" id="you-summary-range"></span>
+          </div>
+          <ul class="you-summary-list" id="you-summary-list"></ul>
+          <img src="assets/mascot.png" alt="" class="you-summary-mascot" />
+        </div>
+
+        <div class="you-toolbar">
+          <div class="you-seg" id="you-seg" role="tablist" aria-label="Time period">
+            <button type="button" class="you-seg-btn" data-period="all" role="tab">All time</button>
+            <button type="button" class="you-seg-btn active" data-period="week" role="tab">Week</button>
+            <button type="button" class="you-seg-btn" data-period="month" role="tab">Month</button>
+            <button type="button" class="you-seg-btn" data-period="year" role="tab">Year</button>
+          </div>
+          <div class="you-period-nav" id="you-period-nav">
+            <button type="button" class="you-nav-arrow" id="you-prev" aria-label="Previous period">‹</button>
+            <span class="you-period-label" id="you-period-label"></span>
+            <button type="button" class="you-nav-arrow" id="you-next" aria-label="Next period">›</button>
+          </div>
+        </div>
+
+        <div class="you-stats-grid">
+          <div class="you-stat-card">
+            <span class="you-stat-label">Steps proved</span>
+            <span class="you-stat-value" id="you-stat-steps">0</span>
+          </div>
+          <div class="you-stat-card">
+            <span class="you-stat-label">Proof accuracy</span>
+            <div class="you-stat-row">
+              <span class="you-stat-value" id="you-stat-accuracy">—</span>
+              <span class="you-stat-delta" id="you-stat-delta"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="you-chart-card">
+          <h3 class="you-chart-title">Proofs completed</h3>
+          <span class="you-chart-range" id="you-chart-range"></span>
+          <div class="you-chart" id="you-chart"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="topics-view" class="page-view active" aria-label="Topics Page">
+      <div class="topics-container">
+      
+        <!-- Topic 1: Proof Foundations -->
+        <article class="topic-row expandable" id="topic-proof-foundations">
+          <div class="topic-main">
+            <div class="topic-graphic">
+              <img src="assets/proof-foundations.png" alt="Proof Foundations" class="topic-img">
+            </div>
+
+            <div class="topic-body">
+              <div class="topic-header">
+                <h2 class="topic-title">Proof Foundations</h2>
+                <button class="chevron-btn" aria-label="Toggle details">
+                  <svg viewBox="0 0 24 24" class="icon-chevron" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              <p class="topic-desc">Master deductive reasoning, direct proofs, contrapositives, and foundational rigor</p>
+            </div>
+
+            <div class="topic-actions">
+              <button class="star-btn" aria-label="Add to favorites">
+                <svg viewBox="0 0 24 24" class="star-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Expandable Learning Track Tray for Proof Foundations -->
+          <div class="topic-tray-wrapper">
+            <div class="topic-tray">
+              <div class="subtopics-list">
+                <div class="subtopics-track-line"></div>
+
+                <!-- Subtopic 1: Direct Proof -->
+                <div class="subtopic-card-item card-launch-proof" data-course="proof-foundations" data-step="0" role="button" tabindex="0" title="Click to view Direct Proof">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 1</span>
+                    <div class="subtopic-icon">
+                      <svg viewBox="0 0 54 54" fill="none">
+                        <rect x="8" y="28" width="12" height="18" rx="2" fill="#fb923c" />
+                        <rect x="22" y="20" width="12" height="26" rx="2" fill="#f97316" />
+                        <rect x="36" y="12" width="12" height="34" rx="2" fill="#ea580c" />
+                        <path d="M12 18 L26 10 L40 10" stroke="#f97316" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <polygon points="43,10 37,7 37,13" fill="#f97316"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Direct Proof</span>
+                </div>
+
+                <!-- Subtopic 2: Contradiction -->
+                <div class="subtopic-card-item card-launch-proof" data-course="proof-foundations" data-step="1" role="button" tabindex="0" title="Click to view Contradiction">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 2</span>
+                    <div class="subtopic-icon">
+                      <svg viewBox="0 0 54 54" fill="none">
+                        <circle cx="27" cy="27" r="19" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+                        <path d="M29 9L18 27H29L25 45L40 23H27L29 9Z" fill="#ea580c"/>
+                        <circle cx="36" cy="18" r="3" fill="#f97316" />
+                        <circle cx="17" cy="38" r="2.5" fill="#f97316" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Contradiction</span>
+                </div>
+
+                <!-- Subtopic 3: Contrapositive -->
+                <div class="subtopic-card-item card-launch-proof" data-course="proof-foundations" data-step="2" role="button" tabindex="0" title="Click to view Contrapositive">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 3</span>
+                    <div class="subtopic-icon">
+                      <svg viewBox="0 0 54 54" fill="none">
+                        <path d="M11 20H37C41 20 44 23 44 27C44 31 41 34 37 34H17" stroke="#f97316" stroke-width="3" stroke-linecap="round"/>
+                        <polygon points="12,34 20,29 20,39" fill="#ea580c"/>
+                        <rect x="14" y="14" width="12" height="12" rx="2" fill="#fdba74" />
+                        <rect x="28" y="28" width="12" height="12" rx="2" fill="#c2410c" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Contrapositive</span>
+                </div>
+
+                <!-- Subtopic 4: Induction -->
+                <div class="subtopic-card-item card-launch-proof" data-course="proof-foundations" data-step="3" role="button" tabindex="0" title="Click to view Induction">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 4</span>
+                    <div class="subtopic-icon">
+                      <svg viewBox="0 0 54 54" fill="none">
+                        <rect x="8" y="16" width="7" height="26" rx="1.5" transform="rotate(22 8 16)" fill="#fdba74" />
+                        <rect x="19" y="14" width="7" height="26" rx="1.5" transform="rotate(18 19 14)" fill="#fb923c" />
+                        <rect x="30" y="14" width="7" height="26" rx="1.5" transform="rotate(12 30 14)" fill="#f97316" />
+                        <rect x="40" y="16" width="7" height="26" rx="1.5" fill="#ea580c" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Induction</span>
+                </div>
+
+                <!-- Subtopic 5: Cases & Exhaustion -->
+                <div class="subtopic-card-item card-launch-proof" data-course="proof-foundations" data-step="4" role="button" tabindex="0" title="Click to view Cases & Exhaustion">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 5</span>
+                    <div class="subtopic-icon">
+                      <svg viewBox="0 0 54 54" fill="none">
+                        <circle cx="27" cy="13" r="6" fill="#fed7aa" stroke="#f97316" stroke-width="2"/>
+                        <path d="M27 19V28M27 28L14 36M27 28L40 36" stroke="#ea580c" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="14" cy="40" r="5" fill="#f97316"/>
+                        <circle cx="27" cy="38" r="5" fill="#fb923c"/>
+                        <circle cx="40" cy="40" r="5" fill="#ea580c"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Cases & Exhaustion</span>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Topic 2: Problem Solving Strategies (Parent Topic with Parity, Invariant, Pigeonhole) -->
+        <article class="topic-row expandable expanded" id="topic-problem-solving">
+          <div class="topic-main">
+            <div class="topic-graphic">
+              <svg viewBox="0 0 76 76" class="graphic-svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="strat-top" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ffedd5"/>
+                    <stop offset="100%" stop-color="#fb923c"/>
+                  </linearGradient>
+                  <linearGradient id="strat-left" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#f97316"/>
+                    <stop offset="100%" stop-color="#c2410c"/>
+                  </linearGradient>
+                  <linearGradient id="strat-right" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ea580c"/>
+                    <stop offset="100%" stop-color="#9a3412"/>
+                  </linearGradient>
+                </defs>
+                <ellipse cx="38" cy="67" rx="26" ry="6" fill="#ea580c" opacity="0.18"/>
+                <polygon points="38,12 60,24 38,36 16,24" fill="url(#strat-top)"/>
+                <polygon points="16,24 38,36 38,62 16,50" fill="url(#strat-left)"/>
+                <polygon points="38,36 60,24 60,50 38,62" fill="url(#strat-right)"/>
+                <line x1="27" y1="18" x2="49" y2="30" stroke="#fed7aa" stroke-width="1.5" opacity="0.6"/>
+                <line x1="49" y1="18" x2="27" y2="30" stroke="#fed7aa" stroke-width="1.5" opacity="0.6"/>
+                <line x1="27" y1="43" x2="27" y2="56" stroke="#9a3412" stroke-width="1.5" opacity="0.5"/>
+                <line x1="49" y1="43" x2="49" y2="56" stroke="#7c2d12" stroke-width="1.5" opacity="0.5"/>
+                <polygon points="50,6 64,14 50,22 36,14" fill="#ffedd5"/>
+                <polygon points="36,14 50,22 50,30 36,22" fill="#fb923c"/>
+                <polygon points="50,22 64,14 64,22 50,30" fill="#f97316"/>
+              </svg>
+            </div>
+
+            <div class="topic-body">
+              <div class="topic-header">
+                <h2 class="topic-title">Problem Solving Strategies</h2>
+                <button class="chevron-btn" aria-label="Toggle details">
+                  <svg viewBox="0 0 24 24" class="icon-chevron" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+              </div>
+              <p class="topic-desc">Fundamental Olympiad techniques: parity, invariants, and pigeonhole distributions</p>
+            </div>
+
+            <div class="topic-actions">
+              <button class="star-btn" aria-label="Add to favorites">
+                <svg viewBox="0 0 24 24" class="star-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Expandable Learning Track Tray (Consistent with Proof Foundations) -->
+          <div class="topic-tray-wrapper">
+            <div class="topic-tray">
+              <div class="subtopics-list">
+                <div class="subtopics-track-line"></div>
+
+                <!-- Subtopic 1: Parity -->
+                <div class="subtopic-card-item card-launch-course" data-course="parity" role="button" tabindex="0" title="Click to view Parity course">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 1</span>
+                    <div class="subtopic-icon">
+                      <img src="assets/parity.png" alt="Parity" class="subtopic-img">
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Parity</span>
+                </div>
+
+                <!-- Subtopic 2: Invariant -->
+                <div class="subtopic-card-item card-launch-course" data-course="invariant" role="button" tabindex="0" title="Click to view Invariant course">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 2</span>
+                    <div class="subtopic-icon">
+                      <img src="assets/invariant.png" alt="Invariant" class="subtopic-img">
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Invariant</span>
+                </div>
+
+                <!-- Subtopic 3: Pigeonhole Principles -->
+                <div class="subtopic-card-item card-launch-course" data-course="pigeonhole" role="button" tabindex="0" title="Click to view Pigeonhole Principles course">
+                  <div class="subtopic-card subtopic-card-link">
+                    <span class="subtopic-tag">PART 3</span>
+                    <div class="subtopic-icon">
+                      <img src="assets/pigeonhole.png" alt="Pigeonhole Principles" class="subtopic-img">
+                    </div>
+                  </div>
+                  <span class="subtopic-name">Pigeonhole Principles</span>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </section>
+

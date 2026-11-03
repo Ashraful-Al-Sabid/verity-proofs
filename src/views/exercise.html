@@ -1,0 +1,126 @@
+    <!-- Interactive Lesson & Exercises Overlay / Modal View (Matching Screenshot Layout) -->
+    <div id="exercise-modal" class="exercise-modal" aria-hidden="true">
+      <div class="exercise-container">
+        
+        <!-- Top Control Bar (Close, Segmented Progress, Streak Counter) -->
+        <header class="exercise-topbar">
+          <button class="exercise-close-btn" id="exercise-close" aria-label="Exit lesson">
+            <svg viewBox="0 0 24 24" class="close-icon" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+
+          <div class="exercise-progress-wrapper">
+            <div class="exercise-progress-track">
+              <div class="exercise-progress-fill" id="exercise-progress-fill" style="width: 25%;"></div>
+            </div>
+            <!-- Progress step dots -->
+            <div class="exercise-progress-dots" id="exercise-progress-dots">
+              <span class="dot active"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+          </div>
+
+          <div class="exercise-stats">
+            <span class="streak-icon">⚡</span>
+            <span class="streak-count" id="exercise-score">3</span>
+          </div>
+        </header>
+
+        <!-- Main Exercise Area (Top Box: Material/Question, Bottom Box: Answering) -->
+        <main class="exercise-body">
+          
+          <!-- Box 1: Learning Material / Question Card -->
+          <div class="exercise-box material-box" id="material-box">
+            <div class="material-header">
+              <span class="lesson-badge" id="lesson-step-badge">§1 · PROBLEM 1 OF 4</span>
+              <span class="lesson-category" id="lesson-category-label">Category</span>
+            </div>
+
+            <div class="material-content" id="material-content">
+              <h2 class="question-headline" id="question-headline">Question Headline</h2>
+              <p class="question-text" id="question-text">
+                Question statement goes here.
+              </p>
+
+              <!-- Dynamic Mathematical Visual / Diagram -->
+              <div class="question-visual" id="question-visual">
+                <!-- Rendered dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Box 2: Answering Box Card (Open Plain-Text Input for AI Evaluation) -->
+          <div class="exercise-box answering-box" id="answering-box">
+            <div class="answering-container">
+              
+              <!-- Answering Toolbar: Attempt Badge, AI Indicator, Hint & Solution Buttons -->
+              <div class="answering-toolbar">
+                <div class="toolbar-left">
+                  <span class="attempt-badge" id="attempt-badge">Attempt 1</span>
+                  <button type="button" class="gemini-status-badge" id="btn-ai-status" title="Configure AI Mentor">
+                    <span class="ai-status-dot offline" id="ai-status-dot"></span>
+                    <span id="ai-status-label">Rule-based (Connect Gemini)</span>
+                  </button>
+                </div>
+                <div class="toolbar-right">
+                  <button type="button" class="tool-btn" id="btn-request-hint" title="Request curated conceptual hint">
+                    <span>💡</span> Request Hint
+                  </button>
+                  <button type="button" class="tool-btn" id="btn-view-solution" title="Unlocked after your first attempt" disabled>
+                    <span>📖</span> Full Solution
+                  </button>
+                </div>
+              </div>
+
+              <!-- Curated Hint Box (Student Autonomy) -->
+              <div class="curated-hint-box" id="curated-hint-box" style="display: none;">
+                <div class="hint-box-header">
+                  <span class="hint-box-title">💡 Curated Mentor Hint</span>
+                  <button type="button" class="hint-box-close" id="btn-close-hint">✕</button>
+                </div>
+                <p class="hint-box-text" id="curated-hint-text">
+                  Think about the parity invariant.
+                </p>
+              </div>
+
+              <div class="input-header">
+                <label for="user-proof-input" class="input-label">Your Mathematical Proof & Argument:</label>
+              </div>
+              <textarea 
+                id="user-proof-input" 
+                class="proof-textarea" 
+                placeholder="State your conclusion clearly, specify the mathematical invariant, setup any definitions, and build your deductive steps..." 
+                rows="4"
+              ></textarea>
+              <div class="input-footer">
+                <span class="hint-text">💡 Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to submit for Olympiad mentor evaluation</span>
+                <span class="char-count" id="char-count">0 words</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Box 3: Course / Lesson Completion Summary Card -->
+          <div class="exercise-box lesson-complete-card" id="lesson-complete" style="display: none;"></div>
+
+        </main>
+
+        <!-- Bottom Check / Continue Footer Bar -->
+        <footer class="exercise-footer">
+          <div class="feedback-message" id="feedback-message">
+            <div class="feedback-icon" id="feedback-icon"></div>
+            <div class="feedback-text-wrap" id="feedback-text-wrap">
+              <h4 class="feedback-title" id="feedback-title"></h4>
+              <p class="feedback-explanation" id="feedback-explanation"></p>
+            </div>
+          </div>
+
+          <button class="exercise-check-btn" id="check-btn" disabled>Check</button>
+        </footer>
+
+      </div>
+    </div>
+
