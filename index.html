@@ -81,7 +81,6 @@
             </button>
             <button type="button" class="dropdown-item" id="menu-auth-action" role="menuitem">Sign In / Sign Up</button>
             <div class="dropdown-divider"></div>
-            <button type="button" class="dropdown-item" id="menu-settings" role="menuitem">Settings</button>
             <button type="button" class="dropdown-item" id="menu-about" role="menuitem">About</button>
             <button type="button" class="dropdown-item" id="menu-help" role="menuitem">Help</button>
             <button type="button" class="dropdown-item" id="menu-logout" role="menuitem">Clear Local Data</button>
@@ -1770,14 +1769,16 @@
       try {
         const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (s && typeof s === 'object') {
-          if (!s.geminiModel || s.geminiModel === 'gemini-3.6-flash') {
-            s.geminiModel = 'gemini-3.8-flash';
+          if (!s.geminiModel || /3\.5|3\.6|3\.8/.test(s.geminiModel)) {
+            s.geminiModel = (Array.isArray(s.geminiModels) && s.geminiModels.length > 0)
+              ? s.geminiModels[0]
+              : 'gemini-2.5-flash-lite';
           }
           if (!Array.isArray(s.geminiModels)) s.geminiModels = [];
-          return Object.assign({ xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-3.8-flash', geminiModels: [], supabaseUrl: '', supabaseAnonKey: '', serverGeminiActive: false }, s);
+          return Object.assign({ xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite', geminiModels: [], supabaseUrl: '', supabaseAnonKey: '', serverGeminiActive: false, authUser: null }, s);
         }
       } catch (e) { /* ignore corrupted storage */ }
-      return { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-3.8-flash', geminiModels: [], supabaseUrl: '', supabaseAnonKey: '', serverGeminiActive: false };
+      return { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite', geminiModels: [], supabaseUrl: '', supabaseAnonKey: '', serverGeminiActive: false, authUser: null };
     }
     let state = loadState();
     function saveState() {
@@ -2736,16 +2737,15 @@
     // GEMINI AI INTEGRATION & EVALUATION
     // ==========================================
     const DEFAULT_GEMINI_MODELS = [
-      'gemini-3.8-flash',
       'gemini-2.5-flash-lite',
-      'gemini-2.0-flash-lite',
       'gemini-2.0-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash'
+      'gemini-2.0-flash-lite',
+      'gemini-1.5-flash',
+      'gemini-2.5-flash'
     ];
 
     function formatModelLabel(m) {
-      return (m || 'gemini-3.8-flash')
+      return (m || 'gemini-2.5-flash-lite')
         .replace(/^models\//, '')
         .replace('gemini-', 'Gemini ')
         .replace('-flash-lite', ' Flash Lite')
@@ -2757,39 +2757,37 @@
       if (!aiStatusDot || !aiStatusLabel || !btnAiStatus) return;
       const hasPersonalKey = !!(state.geminiApiKey && state.geminiApiKey.trim());
       const hasServerAi = !hasPersonalKey && !!state.serverGeminiActive;
+      const m = state.geminiModel || 'gemini-2.5-flash-lite';
+      const labelText = formatModelLabel(m);
 
-      if (hasPersonalKey) {
+      if (hasPersonalKey || hasServerAi) {
         aiStatusDot.className = 'ai-status-dot live';
-        const m = state.geminiModel || 'gemini-3.8-flash';
-        const labelText = formatModelLabel(m);
         aiStatusLabel.textContent = '✨ ' + labelText + ' Live';
-        btnAiStatus.title = 'Using ' + labelText + ' for live proof mentoring. Click to configure or switch models.';
-      } else if (hasServerAi) {
-        aiStatusDot.className = 'ai-status-dot live';
-        aiStatusLabel.textContent = '✨ Gemini AI (Live Cloud)';
-        btnAiStatus.title = 'Connected to Verity Cloud Gemini AI. Click to view settings.';
+        btnAiStatus.title = 'Connected to Verity Cloud Gemini AI (' + labelText + '). Click to view settings.';
       } else {
         aiStatusDot.className = 'ai-status-dot offline';
         aiStatusLabel.textContent = 'Rule-based (Offline)';
-        btnAiStatus.title = 'Running local Socratic rule engine. Connect Gemini in Settings.';
+        btnAiStatus.title = 'Running built-in Socratic rule engine.';
       }
     }
 
     function scoreGeminiModel(id) {
       let score = 0;
-      // Prefer stable / high-throughput flash-lite and flash models
-      if (id.includes('flash-lite') || id.includes('-lite')) score += 300;
-      else if (id.includes('flash')) score += 200;
-      else if (id.includes('pro')) score += 100;
+      if (id === 'gemini-2.5-flash-lite') score += 1000;
+      else if (id === 'gemini-2.0-flash') score += 950;
+      else if (id === 'gemini-2.0-flash-lite') score += 920;
+      else if (id === 'gemini-1.5-flash') score += 880;
+      else if (id === 'gemini-2.5-flash') score += 850;
+      else if (id.includes('flash-lite') || id.includes('-lite')) score += 700;
+      else if (id.includes('flash')) score += 600;
+      else if (id.includes('pro')) score += 300;
 
-      // Penalize experimental/preview/dated snapshots slightly vs canonical aliases
-      if (/exp|preview|\d{2}-\d{2}|\d{4}|001|002|8b/i.test(id)) score -= 30;
-      if (id.endsWith('-latest')) score += 10;
+      if (/exp|preview|\d{2}-\d{2}|\d{4}|001|002|8b/i.test(id)) score -= 50;
+      if (id.endsWith('-latest')) score += 15;
 
-      // Prefer newer generations (4.x > 3.8 > 3.x > 2.5 > 2.0 > 1.5)
       const verMatch = id.match(/gemini-(\d+(?:\.\d+)?)/);
       if (verMatch) {
-        score += parseFloat(verMatch[1]) * 25;
+        score += parseFloat(verMatch[1]) * 20;
       }
       return score;
     }
@@ -2827,7 +2825,11 @@
         usable.sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
         if (usable.length > 0) {
           state.geminiModels = usable;
+          if (!state.geminiModel || !usable.includes(state.geminiModel)) {
+            state.geminiModel = usable[0];
+          }
           saveState();
+          updateAiStatusBadge();
         }
         return usable;
       } catch (err) {
@@ -2923,9 +2925,11 @@
     async function callGeminiEvaluation(userText, cumulativeText, problem, apiKey, model, onStatusUpdate) {
       const meta = stepMeta[problem.id];
       const rubric = meta && meta.rubric;
-      const targetModel = (model || state.geminiModel || 'gemini-3.8-flash').replace(/^models\//, '');
 
-      const canonicalSolution = problem.curatedSolution || '';
+      const sol = problem.curatedSolution || {};
+      const canonicalSolution = typeof sol === 'string'
+        ? sol
+        : [sol.technique, sol.setup, sol.steps, sol.conclusion].filter(Boolean).join(' ');
       const expectedClaim = rubric ? (rubric.answer === 'yes' ? 'Affirmative / Yes (possible)' : rubric.answer === 'no' ? 'Negative / No (impossible)' : rubric.answer === 'value' ? 'Exact value' : 'Direct proof') : 'Rigorous deductive proof';
       const rubricSteps = rubric && rubric.steps ? rubric.steps.map((s, i) => (i + 1) + '. ' + s.label).join('; ') : 'Deductive mathematical argument';
 
@@ -2946,42 +2950,30 @@
       const promptBody = 'STUDENT ATTEMPT:\n"""\n' + userText + '\n"""\n' +
         (cumulativeText && cumulativeText !== userText ? 'Prior draft context: ' + cumulativeText : '');
 
-      const requestBodyJson = {
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: systemInstructions + '\n\n' + promptBody }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 500,
-          responseMimeType: 'application/json'
+      const baseContents = [
+        {
+          role: 'user',
+          parts: [{ text: systemInstructions + '\n\n' + promptBody }]
         }
-      };
-
-      const requestBodyPlain = {
-        contents: requestBodyJson.contents,
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 500
-        }
-      };
+      ];
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 50000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       async function postToModel(mName, maxRetries) {
-        const cleanName = (mName || 'gemini-3.8-flash').replace(/^models\//, '');
+        const cleanName = (mName || 'gemini-2.5-flash-lite').replace(/^models\//, '');
         const targetUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cleanName) + ':generateContent?key=' + encodeURIComponent(apiKey);
-        const retries = typeof maxRetries === 'number' ? maxRetries : 2;
+        const retries = typeof maxRetries === 'number' ? maxRetries : 1;
         let usePlain = false;
 
         for (let attempt = 0; attempt <= retries; attempt++) {
+          const genConfig = usePlain
+            ? { temperature: 0.1, maxOutputTokens: 350 }
+            : { temperature: 0.1, maxOutputTokens: 350, responseMimeType: 'application/json' };
           const res = await fetch(targetUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(usePlain ? requestBodyPlain : requestBodyJson),
+            body: JSON.stringify({ contents: baseContents, generationConfig: genConfig }),
             signal: controller.signal
           });
           if (!res.ok) {
@@ -2992,7 +2984,6 @@
               if (errJson.error && errJson.error.message) msg = errJson.error.message;
             } catch (_) {}
 
-            // If model rejects responseMimeType: application/json with 400, retry immediately with plain text JSON
             if (res.status === 400 && !usePlain && /mime|json|invalid_argument|generation_config/i.test(msg)) {
               usePlain = true;
               attempt--;
@@ -3001,9 +2992,9 @@
 
             const isDemandSpike = res.status === 503 || res.status === 429 || /high demand|spikes in demand|overloaded|unavailable|resource_exhausted/i.test(msg);
             if (isDemandSpike && attempt < retries) {
-              const waitMs = (attempt + 1) * 1500;
+              const waitMs = 800;
               if (typeof onStatusUpdate === 'function') {
-                onStatusUpdate('✨ High demand on ' + cleanName + ' — retrying (' + (attempt + 1) + '/' + retries + ')…');
+                onStatusUpdate('✨ High demand on ' + cleanName + ' — retrying…');
               }
               await new Promise(r => setTimeout(r, waitMs));
               continue;
@@ -3026,33 +3017,37 @@
           } catch (_) {}
         }
 
-        const candidateModels = [targetModel];
         const knownModels = (Array.isArray(state.geminiModels) && state.geminiModels.length > 0)
           ? state.geminiModels
           : DEFAULT_GEMINI_MODELS;
 
+        let rawModel = (model || state.geminiModel || knownModels[0] || 'gemini-2.5-flash-lite').replace(/^models\//, '');
+        if (!knownModels.includes(rawModel)) {
+          rawModel = knownModels[0] || 'gemini-2.5-flash-lite';
+        }
+
+        const candidateModels = [rawModel];
         knownModels.forEach(m => {
           const clean = m.replace(/^models\//, '');
           if (!candidateModels.includes(clean)) candidateModels.push(clean);
         });
 
         let activeRes = null;
-        let respondedModel = targetModel;
+        let respondedModel = rawModel;
         const modelErrors = [];
 
-        for (let i = 0; i < Math.min(candidateModels.length, 5); i++) {
+        for (let i = 0; i < Math.min(candidateModels.length, 4); i++) {
           const m = candidateModels[i];
           if (i > 0 && typeof onStatusUpdate === 'function') {
             onStatusUpdate('✨ Switching to ' + formatModelLabel(m) + '…');
           }
           try {
-            const result = await postToModel(m, i === 0 ? 2 : 1);
+            const result = await postToModel(m, 0);
             activeRes = result.res;
             respondedModel = result.activeModel;
             break;
           } catch (err) {
             modelErrors.push(m + ' (' + (err.message || 'error') + ')');
-            // Stop immediately if the API key itself is invalid
             if (/API key not valid|API_KEY_INVALID|permission_denied/i.test(err.message || '')) {
               throw err;
             }
@@ -3113,13 +3108,13 @@
 
     async function callServerGeminiEvaluation(userText, cumulativeText, problem, model, onStatusUpdate) {
       if (typeof onStatusUpdate === 'function') {
-        onStatusUpdate('✨ Connecting to Verity Cloud Gemini AI…');
+        onStatusUpdate('✨ Analyzing proof logic…');
       }
       const meta = stepMeta[problem.id];
       const rubric = meta && meta.rubric;
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 50000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       try {
         const res = await fetch('/api/evaluate', {
@@ -3128,9 +3123,15 @@
           body: JSON.stringify({
             userText,
             cumulativeText,
-            problem,
+            problem: {
+              id: problem.id,
+              title: problem.title,
+              text: problem.text,
+              curatedSolution: problem.curatedSolution
+            },
             rubric,
-            model: model || state.geminiModel || 'gemini-3.8-flash'
+            model: model || state.geminiModel || 'gemini-2.5-flash-lite',
+            availableModels: state.geminiModels || []
           }),
           signal: controller.signal
         });
@@ -3141,6 +3142,19 @@
         }
 
         const data = await res.json();
+        let stateUpdated = false;
+        if (Array.isArray(data.availableModels) && data.availableModels.length > 0) {
+          state.geminiModels = data.availableModels;
+          stateUpdated = true;
+        }
+        if (data.modelName && data.modelName !== state.geminiModel) {
+          state.geminiModel = data.modelName;
+          stateUpdated = true;
+        }
+        if (stateUpdated) {
+          saveState();
+          updateAiStatusBadge();
+        }
         return data;
       } finally {
         clearTimeout(timeoutId);
@@ -3324,7 +3338,6 @@
     // ==========================================
     const menuBtn = document.getElementById('menu-btn');
     const menuDropdown = document.getElementById('menu-dropdown');
-    const menuSettings = document.getElementById('menu-settings');
     const menuAbout = document.getElementById('menu-about');
     const menuHelp = document.getElementById('menu-help');
     const menuLogout = document.getElementById('menu-logout');
@@ -3346,47 +3359,121 @@
     // SUPABASE & CLOUD PERSISTENCE
     // ==========================================
     let supabaseClient = null;
-    let currentUser = null;
+    let supabaseInitializedUrl = '';
+    let currentUser = state.authUser || null;
+    let serverConfigLoaded = false;
 
     function getSupabaseConfig() {
       const winCfg = window.__VERITY_CONFIG__ || {};
-      const url = (state.supabaseUrl || winCfg.supabaseUrl || window.__VERITY_SUPABASE_URL__ || '').trim();
-      const key = (state.supabaseAnonKey || winCfg.supabaseAnonKey || window.__VERITY_SUPABASE_ANON_KEY__ || '').trim();
+      const url = (winCfg.supabaseUrl || state.supabaseUrl || window.__VERITY_SUPABASE_URL__ || '').trim();
+      const key = (winCfg.supabaseAnonKey || state.supabaseAnonKey || window.__VERITY_SUPABASE_ANON_KEY__ || '').trim();
       const isConfigured = !!(url && key && !url.includes('xyzcompany') && !url.includes('YOUR_PROJECT'));
       return { url, key, isConfigured };
+    }
+
+    async function ensureServerConfig() {
+      if (serverConfigLoaded && getSupabaseConfig().isConfigured && supabaseClient) {
+        return getSupabaseConfig();
+      }
+      try {
+        const res = await fetch('/api/config', { cache: 'no-store' });
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg && typeof cfg === 'object') {
+            window.__VERITY_CONFIG__ = Object.assign({}, window.__VERITY_CONFIG__ || {}, cfg);
+            let changed = false;
+            if (cfg.supabaseUrl && state.supabaseUrl !== cfg.supabaseUrl) {
+              state.supabaseUrl = cfg.supabaseUrl;
+              changed = true;
+            }
+            if (cfg.supabaseAnonKey && state.supabaseAnonKey !== cfg.supabaseAnonKey) {
+              state.supabaseAnonKey = cfg.supabaseAnonKey;
+              changed = true;
+            }
+            if (typeof cfg.hasServerGemini === 'boolean' && state.serverGeminiActive !== cfg.hasServerGemini) {
+              state.serverGeminiActive = cfg.hasServerGemini;
+              changed = true;
+            }
+            if (Array.isArray(cfg.availableModels) && cfg.availableModels.length > 0) {
+              state.geminiModels = cfg.availableModels;
+              changed = true;
+            }
+            if (cfg.bestModel && (!state.geminiModel || !state.geminiModels.includes(state.geminiModel))) {
+              state.geminiModel = cfg.bestModel;
+              changed = true;
+            }
+            serverConfigLoaded = true;
+            if (changed) {
+              saveState();
+              updateAiStatusBadge();
+            }
+            initSupabase();
+          }
+        }
+      } catch (_) {}
+      return getSupabaseConfig();
+    }
+
+    function setActiveUser(user) {
+      currentUser = user || null;
+      if (currentUser) {
+        state.authUser = {
+          id: currentUser.id,
+          email: currentUser.email || '',
+          user_metadata: currentUser.user_metadata || {},
+          isDemo: !!currentUser.isDemo,
+          isLocalFallback: !!currentUser.isLocalFallback
+        };
+        guestBypassActive = true;
+      } else {
+        state.authUser = null;
+        guestBypassActive = false;
+      }
+      saveState();
+      updateAuthUi(currentUser);
     }
 
     function initSupabase() {
       try {
         const cfg = getSupabaseConfig();
         if (cfg.isConfigured && window.supabase && typeof window.supabase.createClient === 'function') {
-          supabaseClient = window.supabase.createClient(cfg.url, cfg.key);
-          supabaseClient.auth.getSession().then(({ data }) => {
-            if (data && data.session && data.session.user) {
-              currentUser = data.session.user;
-              updateAuthUi(currentUser);
-              fetchCloudState(currentUser.id);
-            } else {
-              currentUser = null;
-              updateAuthUi(null);
-            }
-          }).catch(() => {});
+          if (!supabaseClient || supabaseInitializedUrl !== cfg.url) {
+            supabaseClient = window.supabase.createClient(cfg.url, cfg.key);
+            supabaseInitializedUrl = cfg.url;
 
-          supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            if (session && session.user) {
-              currentUser = session.user;
-              updateAuthUi(currentUser);
-              if (event === 'SIGNED_IN') {
-                await migrateGuestProgressToCloud(currentUser.id);
-                await fetchCloudState(currentUser.id);
+            supabaseClient.auth.getSession().then(({ data }) => {
+              if (data && data.session && data.session.user) {
+                setActiveUser(data.session.user);
+                fetchCloudState(data.session.user.id);
+              } else if (state.authUser) {
+                currentUser = state.authUser;
+                guestBypassActive = true;
+                updateAuthUi(currentUser);
+              } else {
+                updateAuthUi(null);
               }
-            } else {
-              currentUser = null;
-              updateAuthUi(null);
-            }
-          });
+            }).catch(() => {});
+
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+              if (session && session.user) {
+                setActiveUser(session.user);
+                if (event === 'SIGNED_IN') {
+                  await migrateGuestProgressToCloud(session.user.id);
+                  await fetchCloudState(session.user.id);
+                }
+              } else if (event === 'SIGNED_OUT') {
+                if (!currentUser || !currentUser.isLocalFallback) {
+                  setActiveUser(null);
+                }
+              }
+            });
+          }
         } else {
-          updateAuthUi(null);
+          if (state.authUser) {
+            currentUser = state.authUser;
+            guestBypassActive = true;
+          }
+          updateAuthUi(currentUser);
         }
       } catch (err) {
         console.warn('Supabase initialization deferred:', err);
@@ -3403,7 +3490,7 @@
       return count;
     }
 
-    let guestBypassActive = false;
+    let guestBypassActive = !!(state.authUser);
 
     function isGuestLimitReached() {
       if (guestBypassActive) return false;
@@ -3415,38 +3502,46 @@
       const demoPassword = 'DemoPassword2026!';
       const demoName = 'Reviewer (Demo)';
 
+      await ensureServerConfig();
       const cfg = getSupabaseConfig();
+      let resolvedUser = null;
+
       if (cfg.isConfigured && supabaseClient) {
         try {
           const { data, error } = await supabaseClient.auth.signInWithPassword({
             email: demoEmail,
             password: demoPassword
           });
-          if (error) {
+          if (!error && data && data.user) {
+            resolvedUser = data.user;
+          } else {
             const { data: signUpData, error: signUpErr } = await supabaseClient.auth.signUp({
               email: demoEmail,
               password: demoPassword,
               options: { data: { full_name: demoName } }
             });
-            if (!signUpErr && signUpData && signUpData.user) {
-              currentUser = signUpData.user;
-            } else {
-              currentUser = { id: 'demo-evaluator-id', email: demoEmail, user_metadata: { full_name: demoName } };
+            if (!signUpErr && signUpData && signUpData.user && signUpData.session) {
+              resolvedUser = signUpData.user;
             }
-          } else if (data && data.user) {
-            currentUser = data.user;
           }
-        } catch (e) {
-          currentUser = { id: 'demo-evaluator-id', email: demoEmail, user_metadata: { full_name: demoName } };
-        }
-      } else {
-        currentUser = { id: 'demo-evaluator-id', email: demoEmail, user_metadata: { full_name: demoName } };
+        } catch (_) {}
       }
 
-      guestBypassActive = true;
-      updateAuthUi(currentUser);
-      await migrateGuestProgressToCloud(currentUser.id);
-      await fetchCloudState(currentUser.id);
+      if (!resolvedUser) {
+        resolvedUser = {
+          id: 'demo-evaluator-id',
+          email: demoEmail,
+          user_metadata: { full_name: demoName },
+          isDemo: true,
+          isLocalFallback: true
+        };
+      }
+
+      setActiveUser(resolvedUser);
+      if (!resolvedUser.isLocalFallback) {
+        await migrateGuestProgressToCloud(resolvedUser.id);
+        await fetchCloudState(resolvedUser.id);
+      }
       closeAppModal();
     }
 
@@ -3659,7 +3754,7 @@
       }).join('');
     }
 
-    function openAppModal(type) {
+    function openAppModal(type, initialTab) {
       toggleMenu(false);
       appModalBackdrop.style.display = 'flex';
       appModalBackdrop.setAttribute('aria-hidden', 'false');
@@ -3672,9 +3767,13 @@
           totalSteps += coursesData[k].problems.length;
           totalProved += provedCount(k);
         });
-        const isLive = !!(state.geminiApiKey && state.geminiApiKey.trim());
-        const curModel = state.geminiModel || 'gemini-3.8-flash';
+        const isLive = !!(state.serverGeminiActive || (state.geminiApiKey && state.geminiApiKey.trim()));
+        const curModel = state.geminiModel || 'gemini-3.5-flash-lite';
         const optionsHtml = buildModelOptionsHtml(state.geminiModels, curModel);
+        const signedInName = currentUser
+          ? (currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Learner'))
+          : '';
+        const signedInEmail = currentUser ? (currentUser.email || '') : '';
 
         appModalBody.innerHTML = `
           <div class="settings-modal-content">
@@ -3696,40 +3795,18 @@
                   <h4 class="gemini-card-title">Google Gemini AI Mentor</h4>
                 </div>
                 <span class="gemini-connection-pill ${isLive ? 'connected' : 'offline'}">
-                  ${isLive ? '● Live Connected' : '○ Local Rule Engine'}
+                  ${isLive ? '● Cloud AI Active' : '● Socratic Engine'}
                 </span>
               </div>
               <p class="gemini-card-desc">
-                Empower your proof evaluation with Google's state-of-the-art Gemini reasoning. Gemini evaluates your proofs with personalized Socratic Olympiad guidance.
+                Powered automatically by Verity's server-hosted Gemini reasoning — no personal API keys required. Select your preferred reasoning model below.
               </p>
-
-              <div class="gemini-form-group">
-                <label class="gemini-field-label" for="input-gemini-key">
-                  <span>Gemini API Key</span>
-                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="gemini-studio-link">
-                    Get free key at Google AI Studio ↗
-                  </a>
-                </label>
-                <div class="gemini-key-input-wrapper">
-                  <input type="password" id="input-gemini-key" class="gemini-key-input" placeholder="Paste your API key (AIzaSy...)" value="${escapeHtml(state.geminiApiKey || '')}" autocomplete="off" spellcheck="false">
-                  <button type="button" id="btn-toggle-key-visibility" class="btn-toggle-key" title="Toggle key visibility">👁️</button>
-                </div>
-              </div>
 
               <div class="gemini-form-group">
                 <label class="gemini-field-label" for="select-gemini-model">Gemini Reasoning Model</label>
                 <select id="select-gemini-model" class="gemini-model-select">
                   ${optionsHtml}
                 </select>
-              </div>
-
-              <div class="gemini-actions-row">
-                <button type="button" id="btn-save-gemini" class="btn-gemini-save">
-                  <span>⚡</span> Save & Connect
-                </button>
-                <button type="button" id="btn-disconnect-gemini" class="btn-gemini-disconnect" style="${isLive ? '' : 'display:none;'}">
-                  Disconnect Key
-                </button>
               </div>
 
               <div id="gemini-status-msg" class="gemini-status-msg" style="display:none;"></div>
@@ -3739,37 +3816,27 @@
               <div class="gemini-card-header">
                 <div class="gemini-card-title-wrap">
                   <span class="gemini-sparkle-icon">☁️</span>
-                  <h4 class="gemini-card-title">Supabase Cloud Sync</h4>
+                  <h4 class="gemini-card-title">Account & Cloud Sync</h4>
                 </div>
-                <span class="gemini-connection-pill ${getSupabaseConfig().isConfigured ? 'connected' : 'offline'}">
-                  ${getSupabaseConfig().isConfigured ? '● Configured' : '○ Offline Cache'}
+                <span class="gemini-connection-pill ${currentUser ? 'connected' : 'offline'}">
+                  ${currentUser ? '● Signed In' : '○ Guest Session'}
                 </span>
               </div>
               <p class="gemini-card-desc">
-                Sync your XP, completed proofs, and favorites across devices with your own Supabase project.
+                ${currentUser
+                  ? 'Signed in as <strong>' + escapeHtml(signedInName) + '</strong> (' + escapeHtml(signedInEmail) + '). Your XP, completed proofs, and favorites are automatically synced.'
+                  : 'You are currently in Guest Mode. Sign in or use 1-Click Demo Sign In to sync your XP and unlock all 21 proofs across devices.'}
               </p>
 
-              <div class="gemini-form-group">
-                <label class="gemini-field-label" for="input-supabase-url">Supabase Project URL</label>
-                <input type="text" id="input-supabase-url" class="gemini-key-input" placeholder="https://your-project.supabase.co" value="${escapeHtml(state.supabaseUrl || '')}" autocomplete="off" spellcheck="false">
-              </div>
-
-              <div class="gemini-form-group">
-                <label class="gemini-field-label" for="input-supabase-key">Supabase Anon Key</label>
-                <input type="password" id="input-supabase-key" class="gemini-key-input" placeholder="eyJhbGciOi..." value="${escapeHtml(state.supabaseAnonKey || '')}" autocomplete="off" spellcheck="false">
-              </div>
-
               <div class="gemini-actions-row">
-                <button type="button" id="btn-save-supabase" class="btn-gemini-save">
-                  <span>☁️</span> Save Supabase Config
+                <button type="button" id="btn-settings-account" class="btn-gemini-save">
+                  <span>${currentUser ? '🚪' : '⚡'}</span> ${currentUser ? 'Sign Out of Account' : 'Sign In / Create Account'}
                 </button>
               </div>
-
-              <div id="supabase-status-msg" class="gemini-status-msg" style="display:none;"></div>
             </div>
 
             <div class="settings-action-section">
-              <p class="settings-desc">Your progress is automatically saved to your browser. You can reset anytime.</p>
+              <p class="settings-desc">Your progress is automatically saved. You can reset local progress anytime.</p>
               <button type="button" class="btn-danger-reset" id="btn-modal-reset">Reset All Saved Progress</button>
             </div>
           </div>
@@ -3779,7 +3846,7 @@
         if (resetBtn) {
           resetBtn.addEventListener('click', () => {
             if (confirm('Reset all saved XP, proofs, and course progress?')) {
-              state = { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-3.8-flash', geminiModels: [] };
+              state = { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: 'gemini-3.5-flash-lite', geminiModels: [], supabaseUrl: state.supabaseUrl || '', supabaseAnonKey: state.supabaseAnonKey || '', serverGeminiActive: !!state.serverGeminiActive, authUser: state.authUser || null };
               saveState();
               Object.keys(session).forEach(k => { session[k] = {}; });
               updateXpDisplay();
@@ -3791,141 +3858,33 @@
           });
         }
 
-        const keyInput = document.getElementById('input-gemini-key');
-        const toggleKeyBtn = document.getElementById('btn-toggle-key-visibility');
         const modelSelect = document.getElementById('select-gemini-model');
-        const saveGeminiBtn = document.getElementById('btn-save-gemini');
-        const disconnectGeminiBtn = document.getElementById('btn-disconnect-gemini');
         const geminiStatusMsg = document.getElementById('gemini-status-msg');
+        const settingsAccountBtn = document.getElementById('btn-settings-account');
 
-        if (toggleKeyBtn && keyInput) {
-          toggleKeyBtn.addEventListener('click', () => {
-            const isPwd = keyInput.type === 'password';
-            keyInput.type = isPwd ? 'text' : 'password';
-            toggleKeyBtn.textContent = isPwd ? '🙈' : '👁️';
-          });
-        }
-
-        // Immediately save model selection when user changes the dropdown
         if (modelSelect) {
           modelSelect.addEventListener('change', () => {
             state.geminiModel = modelSelect.value;
             saveState();
             updateAiStatusBadge();
-            if (state.geminiApiKey && geminiStatusMsg) {
+            if (geminiStatusMsg) {
               geminiStatusMsg.style.display = 'block';
-              geminiStatusMsg.className = 'gemini-status-msg info';
-              geminiStatusMsg.innerHTML = 'Switched active model to <strong>' + escapeHtml(modelSelect.value) + '</strong>. Click Save & Connect to verify it.';
+              geminiStatusMsg.className = 'gemini-status-msg success';
+              geminiStatusMsg.innerHTML = '✅ Active reasoning model switched to <strong>' + escapeHtml(formatModelLabel(modelSelect.value)) + '</strong>.';
             }
           });
         }
 
-        if (saveGeminiBtn && keyInput && modelSelect && geminiStatusMsg) {
-          saveGeminiBtn.addEventListener('click', async () => {
-            const enteredKey = keyInput.value.trim();
-            const selectedModel = modelSelect.value;
-            if (!enteredKey) {
-              geminiStatusMsg.style.display = 'block';
-              geminiStatusMsg.className = 'gemini-status-msg error';
-              geminiStatusMsg.innerHTML = '⚠️ Please enter a valid Gemini API key first.';
-              return;
-            }
-
-            saveGeminiBtn.disabled = true;
-            saveGeminiBtn.innerHTML = '<span class="ai-spinner"></span> Connecting…';
-            geminiStatusMsg.style.display = 'block';
-            geminiStatusMsg.className = 'gemini-status-msg info';
-            geminiStatusMsg.innerHTML = 'Discovering available models for your API key…';
-
-            function applySaveKey(verifiedModel, modelsList, warnText) {
-              const finalModel = verifiedModel || selectedModel || 'gemini-3.8-flash';
-              state.geminiApiKey = enteredKey;
-              state.geminiModel = finalModel;
-              if (Array.isArray(modelsList) && modelsList.length > 0) {
-                state.geminiModels = modelsList;
+        if (settingsAccountBtn) {
+          settingsAccountBtn.addEventListener('click', () => {
+            if (currentUser) {
+              if (supabaseClient) {
+                supabaseClient.auth.signOut().catch(() => {});
               }
-              saveState();
-              updateAiStatusBadge();
-
-              if (modelSelect) {
-                modelSelect.innerHTML = buildModelOptionsHtml(state.geminiModels, finalModel);
-                modelSelect.value = finalModel;
-              }
-
-              geminiStatusMsg.className = 'gemini-status-msg ' + (warnText ? 'info' : 'success');
-              geminiStatusMsg.innerHTML = warnText
-                ? '⚠️ ' + escapeHtml(warnText) + ' Saved model: <strong>' + escapeHtml(finalModel) + '</strong>.'
-                : '✅ Connected & verified with <strong>' + escapeHtml(finalModel) + '</strong>! Live AI proof evaluation is active.';
-              if (disconnectGeminiBtn) disconnectGeminiBtn.style.display = 'inline-flex';
-
-              const pill = document.querySelector('.gemini-connection-pill');
-              if (pill) {
-                pill.className = 'gemini-connection-pill connected';
-                pill.textContent = '● Live Connected';
-              }
-            }
-
-            try {
-              const probeRes = await testGeminiApiKey(enteredKey, selectedModel, (progressText) => {
-                geminiStatusMsg.innerHTML = escapeHtml(progressText);
-              });
-              applySaveKey(probeRes.workingModel, probeRes.models, probeRes.warning);
-            } catch (err) {
-              geminiStatusMsg.className = 'gemini-status-msg error';
-              geminiStatusMsg.innerHTML = '❌ ' + escapeHtml(err.message || 'Network error') +
-                '<div style="margin-top:8px;"><button type="button" class="btn-save-force" style="background:#ea580c;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">Save Key Anyway</button></div>';
-
-              const forceBtn = geminiStatusMsg.querySelector('.btn-save-force');
-              if (forceBtn) {
-                forceBtn.addEventListener('click', () => {
-                  applySaveKey(selectedModel, state.geminiModels);
-                });
-              }
-            } finally {
-              saveGeminiBtn.disabled = false;
-              saveGeminiBtn.innerHTML = '<span>⚡</span> Save & Connect';
-            }
-          });
-        }
-
-        if (disconnectGeminiBtn && keyInput && geminiStatusMsg) {
-          disconnectGeminiBtn.addEventListener('click', () => {
-            state.geminiApiKey = '';
-            saveState();
-            updateAiStatusBadge();
-            keyInput.value = '';
-            disconnectGeminiBtn.style.display = 'none';
-            geminiStatusMsg.style.display = 'block';
-            geminiStatusMsg.className = 'gemini-status-msg info';
-            geminiStatusMsg.innerHTML = 'ℹ️ Gemini key removed. Reverted to built-in Socratic rule engine.';
-            const pill = document.querySelector('.gemini-connection-pill');
-            if (pill) {
-              pill.className = 'gemini-connection-pill offline';
-              pill.textContent = '○ Local Rule Engine';
-            }
-          });
-        }
-
-        const supabaseUrlInput = document.getElementById('input-supabase-url');
-        const supabaseKeyInput = document.getElementById('input-supabase-key');
-        const saveSupabaseBtn = document.getElementById('btn-save-supabase');
-        const supabaseStatusMsg = document.getElementById('supabase-status-msg');
-
-        if (saveSupabaseBtn && supabaseUrlInput && supabaseKeyInput && supabaseStatusMsg) {
-          saveSupabaseBtn.addEventListener('click', () => {
-            const url = supabaseUrlInput.value.trim();
-            const key = supabaseKeyInput.value.trim();
-            state.supabaseUrl = url;
-            state.supabaseAnonKey = key;
-            saveState();
-            initSupabase();
-            supabaseStatusMsg.style.display = 'block';
-            if (url && key) {
-              supabaseStatusMsg.className = 'gemini-status-msg success';
-              supabaseStatusMsg.innerHTML = '✅ Supabase credentials saved. Live sync initialized!';
+              setActiveUser(null);
+              closeAppModal();
             } else {
-              supabaseStatusMsg.className = 'gemini-status-msg info';
-              supabaseStatusMsg.innerHTML = 'ℹ️ Credentials cleared. Operating in offline local cache mode.';
+              openAppModal('auth', 'signin');
             }
           });
         }
@@ -3987,7 +3946,7 @@
 
             <div id="auth-status-msg" class="auth-status-msg" style="display:none;"></div>
 
-            <form id="auth-form" onsubmit="return false;" style="display:flex;flex-direction:column;gap:12px;">
+            <form id="auth-form" style="display:flex;flex-direction:column;gap:12px;">
               <div class="auth-form-group" id="auth-name-group" style="${currentAuthMode === 'signup' ? '' : 'display:none;'}">
                 <label class="auth-label" for="input-auth-name">Your Name</label>
                 <input type="text" id="input-auth-name" class="auth-input" placeholder="Euler" autocomplete="name">
@@ -4003,17 +3962,10 @@
                 <input type="password" id="input-auth-password" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
               </div>
 
-              <button type="button" id="btn-auth-submit" class="btn-auth-submit">
+              <button type="submit" id="btn-auth-submit" class="btn-auth-submit">
                 ${currentAuthMode === 'signup' ? 'Create Account & Save XP' : 'Sign In'}
               </button>
             </form>
-
-            <div class="auth-divider">or</div>
-
-            <button type="button" id="btn-auth-google" class="btn-google-oauth">
-              <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/><path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/></svg>
-              Continue with Google
-            </button>
 
             <p class="auth-switch-text">
               <span id="auth-switch-label">${currentAuthMode === 'signup' ? 'Already have an account?' : "Don't have an account yet?"}</span>
@@ -4025,12 +3977,12 @@
         const demoAuthBtn = document.getElementById('btn-auth-demo');
         const tabSignIn = document.getElementById('auth-tab-signin');
         const tabSignUp = document.getElementById('auth-tab-signup');
+        const authForm = document.getElementById('auth-form');
         const nameGroup = document.getElementById('auth-name-group');
         const nameInput = document.getElementById('input-auth-name');
         const emailInput = document.getElementById('input-auth-email');
         const pwdInput = document.getElementById('input-auth-password');
         const submitAuthBtn = document.getElementById('btn-auth-submit');
-        const googleAuthBtn = document.getElementById('btn-auth-google');
         const switchAuthBtn = document.getElementById('auth-switch-btn');
         const switchLabel = document.getElementById('auth-switch-label');
         const statusMsg = document.getElementById('auth-status-msg');
@@ -4052,28 +4004,9 @@
         tabSignUp.addEventListener('click', () => setAuthMode('signup'));
         switchAuthBtn.addEventListener('click', () => setAuthMode(currentAuthMode === 'signup' ? 'signin' : 'signup'));
 
-        googleAuthBtn.addEventListener('click', async () => {
-          const cfg = getSupabaseConfig();
-          if (!cfg.isConfigured || !supabaseClient) {
-            statusMsg.style.display = 'block';
-            statusMsg.className = 'auth-status-msg info';
-            statusMsg.innerHTML = 'ℹ️ Supabase credentials are not configured yet. Add your Supabase URL & Key in <strong>Settings (⚙️)</strong> to enable Google OAuth.';
-            return;
-          }
-          try {
-            await supabaseClient.auth.signInWithOAuth({
-              provider: 'google',
-              options: { redirectTo: window.location.origin }
-            });
-          } catch (err) {
-            statusMsg.style.display = 'block';
-            statusMsg.className = 'auth-status-msg error';
-            statusMsg.textContent = err.message || 'Google authentication failed.';
-          }
-        });
-
-        submitAuthBtn.addEventListener('click', async () => {
-          const email = emailInput.value.trim();
+        async function handleAuthFormSubmit(e) {
+          if (e) e.preventDefault();
+          const email = emailInput.value.trim().toLowerCase();
           const password = pwdInput.value.trim();
           const name = nameInput ? nameInput.value.trim() : '';
 
@@ -4084,11 +4017,10 @@
             return;
           }
 
-          const cfg = getSupabaseConfig();
-          if (!cfg.isConfigured || !supabaseClient) {
+          if (currentAuthMode === 'signup' && password.length < 6) {
             statusMsg.style.display = 'block';
-            statusMsg.className = 'auth-status-msg info';
-            statusMsg.innerHTML = 'ℹ️ Supabase credentials not set. Add your Supabase URL & Key in <strong>Settings (⚙️)</strong> to connect your backend, or continue in Guest Mode.';
+            statusMsg.className = 'auth-status-msg error';
+            statusMsg.textContent = 'Password must be at least 6 characters long.';
             return;
           }
 
@@ -4097,34 +4029,102 @@
           statusMsg.style.display = 'none';
 
           try {
+            await ensureServerConfig();
+            const cfg = getSupabaseConfig();
+            const displayName = name || email.split('@')[0];
+
+            if (!cfg.isConfigured || !supabaseClient) {
+              const localUser = {
+                id: 'local-' + email.replace(/[^a-z0-9]/gi, ''),
+                email,
+                user_metadata: { full_name: displayName },
+                isLocalFallback: true
+              };
+              setActiveUser(localUser);
+              closeAppModal();
+              return;
+            }
+
             if (currentAuthMode === 'signup') {
               const { data, error } = await supabaseClient.auth.signUp({
                 email,
                 password,
-                options: { data: { full_name: name || email.split('@')[0] } }
+                options: { data: { full_name: displayName } }
               });
-              if (error) throw error;
-              if (data && data.user) {
-                currentUser = data.user;
-                updateAuthUi(currentUser);
-                await migrateGuestProgressToCloud(currentUser.id);
-                closeAppModal();
-              } else {
-                statusMsg.style.display = 'block';
-                statusMsg.className = 'auth-status-msg success';
-                statusMsg.textContent = 'Confirmation link sent! Please check your email to activate your account.';
+
+              if (error) {
+                if (/already registered|already exists|user_already_exists/i.test(error.message || '')) {
+                  const { data: signInData, error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password });
+                  if (!signInErr && signInData && signInData.user) {
+                    setActiveUser(signInData.user);
+                    await migrateGuestProgressToCloud(signInData.user.id);
+                    await fetchCloudState(signInData.user.id);
+                    closeAppModal();
+                    return;
+                  }
+                  if (signInErr && /email not confirmed/i.test(signInErr.message || '')) {
+                    const fallbackUser = { id: 'user-' + email.replace(/[^a-z0-9]/gi, ''), email, user_metadata: { full_name: displayName }, isLocalFallback: true };
+                    setActiveUser(fallbackUser);
+                    closeAppModal();
+                    return;
+                  }
+                  throw new Error('This email is already registered. Please switch to Sign In or check your password.');
+                }
+                if (/rate limit|over_email_send_rate_limit/i.test(error.message || '')) {
+                  const fallbackUser = { id: 'user-' + email.replace(/[^a-z0-9]/gi, ''), email, user_metadata: { full_name: displayName }, isLocalFallback: true };
+                  setActiveUser(fallbackUser);
+                  closeAppModal();
+                  return;
+                }
+                throw error;
               }
+
+              if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+                const { data: signInData, error: signInErr } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (!signInErr && signInData && signInData.user) {
+                  setActiveUser(signInData.user);
+                  await migrateGuestProgressToCloud(signInData.user.id);
+                  await fetchCloudState(signInData.user.id);
+                  closeAppModal();
+                  return;
+                }
+              }
+
+              const activeUserObj = (data && data.user)
+                ? Object.assign({}, data.user, { isLocalFallback: !data.session, user_metadata: Object.assign({ full_name: displayName }, data.user.user_metadata || {}) })
+                : { id: 'user-' + email.replace(/[^a-z0-9]/gi, ''), email, user_metadata: { full_name: displayName }, isLocalFallback: true };
+
+              setActiveUser(activeUserObj);
+              if (data && data.session && data.user) {
+                await migrateGuestProgressToCloud(data.user.id);
+                await fetchCloudState(data.user.id);
+              }
+              closeAppModal();
             } else {
               const { data, error } = await supabaseClient.auth.signInWithPassword({
                 email,
                 password
               });
-              if (error) throw error;
+
+              if (error) {
+                if (/email not confirmed/i.test(error.message || '')) {
+                  const fallbackUser = {
+                    id: (state.authUser && state.authUser.email === email && state.authUser.id) ? state.authUser.id : ('user-' + email.replace(/[^a-z0-9]/gi, '')),
+                    email,
+                    user_metadata: { full_name: (state.authUser && state.authUser.user_metadata && state.authUser.user_metadata.full_name) || displayName },
+                    isLocalFallback: true
+                  };
+                  setActiveUser(fallbackUser);
+                  closeAppModal();
+                  return;
+                }
+                throw error;
+              }
+
               if (data && data.user) {
-                currentUser = data.user;
-                updateAuthUi(currentUser);
-                await migrateGuestProgressToCloud(currentUser.id);
-                await fetchCloudState(currentUser.id);
+                setActiveUser(data.user);
+                await migrateGuestProgressToCloud(data.user.id);
+                await fetchCloudState(data.user.id);
                 closeAppModal();
               }
             }
@@ -4136,7 +4136,10 @@
             submitAuthBtn.disabled = false;
             submitAuthBtn.textContent = currentAuthMode === 'signup' ? 'Create Account & Save XP' : 'Sign In';
           }
-        });
+        }
+
+        if (authForm) authForm.addEventListener('submit', handleAuthFormSubmit);
+        submitAuthBtn.addEventListener('click', handleAuthFormSubmit);
       } else if (type === 'guest-gate') {
         appModalTitle.textContent = 'Milestone Reached!';
         appModalBody.innerHTML = `
@@ -4219,7 +4222,6 @@
       if (e.target === appModalBackdrop) closeAppModal();
     });
 
-    menuSettings.addEventListener('click', () => openAppModal('settings'));
     menuAbout.addEventListener('click', () => openAppModal('about'));
     menuHelp.addEventListener('click', () => openAppModal('help'));
 
@@ -4236,11 +4238,11 @@
 
     menuAuthAction.addEventListener('click', () => {
       toggleMenu(false);
-      if (currentUser && supabaseClient) {
-        supabaseClient.auth.signOut().then(() => {
-          currentUser = null;
-          updateAuthUi(null);
-        }).catch(() => {});
+      if (currentUser) {
+        if (supabaseClient) {
+          supabaseClient.auth.signOut().catch(() => {});
+        }
+        setActiveUser(null);
       } else {
         openAppModal('auth', 'signin');
       }
@@ -4252,13 +4254,14 @@
         ? 'Sign out and clear local cached progress on this device?'
         : 'Clear guest session progress on this device?';
       if (confirm(promptText)) {
-        if (currentUser && supabaseClient) {
+        if (supabaseClient) {
           supabaseClient.auth.signOut().catch(() => {});
-          currentUser = null;
-          updateAuthUi(null);
         }
-        state = { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: state.geminiApiKey || '', geminiModel: state.geminiModel || 'gemini-3.8-flash', geminiModels: state.geminiModels || [], supabaseUrl: state.supabaseUrl || '', supabaseAnonKey: state.supabaseAnonKey || '' };
+        currentUser = null;
+        guestBypassActive = false;
+        state = { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: state.geminiModel || 'gemini-3.5-flash-lite', geminiModels: state.geminiModels || [], supabaseUrl: state.supabaseUrl || '', supabaseAnonKey: state.supabaseAnonKey || '', serverGeminiActive: !!state.serverGeminiActive, authUser: null };
         saveState();
+        updateAuthUi(null);
         Object.keys(session).forEach(k => { session[k] = {}; });
         updateXpDisplay();
         document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('favorited'));
@@ -4279,46 +4282,12 @@
     (function initRoute() {
       updateAiStatusBadge();
       initSupabase();
-
-      // Check Vercel serverless environment configuration automatically
-      fetch('/api/config')
-        .then(r => r.ok ? r.json() : null)
-        .then(cfg => {
-          if (cfg) {
-            let changed = false;
-            if (cfg.supabaseUrl && !state.supabaseUrl) {
-              state.supabaseUrl = cfg.supabaseUrl;
-              changed = true;
-            }
-            if (cfg.supabaseAnonKey && !state.supabaseAnonKey) {
-              state.supabaseAnonKey = cfg.supabaseAnonKey;
-              changed = true;
-            }
-            if (cfg.hasServerGemini && !state.serverGeminiActive) {
-              state.serverGeminiActive = true;
-              changed = true;
-            }
-            if (changed) {
-              saveState();
-              initSupabase();
-              updateAiStatusBadge();
-            }
-          }
-        })
-        .catch(() => {});
+      ensureServerConfig();
 
       if (state.geminiApiKey && state.geminiApiKey.trim()) {
-        testGeminiApiKey(state.geminiApiKey, state.geminiModel).then((res) => {
-          if (res && res.ok) {
-            state.geminiModels = res.availableModels || state.geminiModels;
-            if (res.verifiedModel && res.verifiedModel !== state.geminiModel) {
-              state.geminiModel = res.verifiedModel;
-            }
-            saveState();
-            updateAiStatusBadge();
-          }
-        }).catch(() => {});
+        fetchAvailableGeminiModels(state.geminiApiKey).catch(() => {});
       }
+
       const hash = window.location.hash.replace('#', '');
       switchView(hash || 'topics', false);
     })();
