@@ -83,7 +83,6 @@
             <div class="dropdown-divider"></div>
             <button type="button" class="dropdown-item" id="menu-about" role="menuitem">About</button>
             <button type="button" class="dropdown-item" id="menu-help" role="menuitem">Help</button>
-            <button type="button" class="dropdown-item" id="menu-logout" role="menuitem">Clear Local Data</button>
           </div>
         </li>
       </ul>
@@ -3340,7 +3339,6 @@
     const menuDropdown = document.getElementById('menu-dropdown');
     const menuAbout = document.getElementById('menu-about');
     const menuHelp = document.getElementById('menu-help');
-    const menuLogout = document.getElementById('menu-logout');
 
     const navSyncPill = document.getElementById('nav-sync-pill');
     const menuUserHeader = document.getElementById('menu-user-header');
@@ -3556,7 +3554,6 @@
         menuUserName.textContent = name;
         menuUserEmail.textContent = user.email || '';
         menuAuthAction.textContent = 'Sign Out';
-        menuLogout.textContent = 'Clear Local Cache';
       } else {
         if (navSyncPill) navSyncPill.style.display = 'none';
         if (menuDemoLogin) menuDemoLogin.style.display = 'flex';
@@ -3566,7 +3563,6 @@
         menuUserName.textContent = 'Learner';
         menuUserEmail.textContent = '';
         menuAuthAction.textContent = 'Sign In / Sign Up';
-        menuLogout.textContent = 'Clear Local Data';
       }
     }
 
@@ -4245,27 +4241,6 @@
         setActiveUser(null);
       } else {
         openAppModal('auth', 'signin');
-      }
-    });
-
-    menuLogout.addEventListener('click', () => {
-      toggleMenu(false);
-      const promptText = currentUser
-        ? 'Sign out and clear local cached progress on this device?'
-        : 'Clear guest session progress on this device?';
-      if (confirm(promptText)) {
-        if (supabaseClient) {
-          supabaseClient.auth.signOut().catch(() => {});
-        }
-        currentUser = null;
-        guestBypassActive = false;
-        state = { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], geminiApiKey: '', geminiModel: state.geminiModel || 'gemini-3.5-flash-lite', geminiModels: state.geminiModels || [], supabaseUrl: state.supabaseUrl || '', supabaseAnonKey: state.supabaseAnonKey || '', serverGeminiActive: !!state.serverGeminiActive, authUser: null };
-        saveState();
-        updateAuthUi(null);
-        Object.keys(session).forEach(k => { session[k] = {}; });
-        updateXpDisplay();
-        document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('favorited'));
-        switchView('home', false);
       }
     });
 
