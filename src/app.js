@@ -983,7 +983,7 @@ function renderMentorFeedback(result, pid) {
   feedbackTitle.textContent = result.title || (isReconsider ? 'Recheck your claim' : 'Keep going');
   feedbackExplanation.innerHTML = `
     <div class="mentor-feedback-flow">
-      <div class="ai-engine-tag ${isLiveGemini ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
+      <div class="ai-engine-tag ${isLiveAi ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
       ${fallbackNoticeHtml}
       ${establishedHtml}
       <div class="socratic-question-card">
@@ -1106,47 +1106,56 @@ checkBtn.addEventListener('click', async () => {
   attemptBadge.textContent = 'Attempt ' + (session.attempts[pid] + 1);
   logActivity(activeCourseKey, pid, result.status === 'complete', result.status === 'complete' && stepStatus(activeCourseKey, pid) !== 'proved');
 
-  if (result.status === 'complete') {
-    const firstTime = stepStatus(activeCourseKey, pid) !== 'proved';
-    const hintsUsed = session.hints[pid] || 0;
-    const gain = firstTime ? Math.max(4, 10 - hintsUsed * 2) : 0;
-    setStepStatus(activeCourseKey, pid, 'proved');
-    if (gain) { state.xp += gain; saveState(); updateXpDisplay(); }
-    renderProgress();
+  try {
+    if (result.status === 'complete') {
+      const firstTime = stepStatus(activeCourseKey, pid) !== 'proved';
+      const hintsUsed = session.hints[pid] || 0;
+      const gain = firstTime ? Math.max(4, 10 - hintsUsed * 2) : 0;
+      setStepStatus(activeCourseKey, pid, 'proved');
+      if (gain) { state.xp += gain; saveState(); updateXpDisplay(); }
+      renderProgress();
 
-    if (currentUser && supabaseClient) {
-      saveStepToCloud(activeCourseKey, pid, result, gain, hintsUsed, userText);
+      if (currentUser && supabaseClient) {
+        saveStepToCloud(activeCourseKey, pid, result, gain, hintsUsed, userText);
+      }
+
+      const isLiveAi = result.engine === 'gemini' || result.engine === 'ai';
+      const engineLabel = isLiveAi
+        ? '✨ Evaluated by ' + formatModelLabel(result.modelName || DEFAULT_GEMINI_MODEL)
+        : '⚡ Evaluated by Socratic Rule Engine';
+      const fallbackNoticeHtml = result.fallbackNotice ? `
+        <div class="gemini-fallback-warning">⚠️ ${escapeHtml(result.fallbackNotice)}</div>` : '';
+
+      feedbackMessage.className = 'feedback-message success show';
+      feedbackIcon.innerHTML = '✨';
+      feedbackTitle.textContent = result.title || 'Proof complete!';
+      feedbackExplanation.innerHTML = `
+        <div class="mentor-feedback-flow">
+          <div class="ai-engine-tag ${isLiveAi ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
+          ${fallbackNoticeHtml}
+          <div class="mentor-section established">
+            <div class="mentor-section-header">🌟 Why your proof works</div>
+            <p class="mentor-section-body">${escapeHtml(result.success || 'Your reasoning is complete, rigorous, and logically connected.')}</p>
+          </div>
+          <p class="reward-line">${gain ? `⚡ +${gain} XP` : 'Already proved earlier: great practice!'}${hintsUsed ? ` · ${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used` : (firstTime ? ' · proved independently' : '')}</p>
+        </div>`;
+      proofInput.readOnly = true;
+      const isLast = currentStep >= coursesData[activeCourseKey].problems.length - 1;
+      setCheckButton('advance', isLast ? 'Finish Lesson' : 'Next Step →', false);
+      celebrateProof(checkBtn);
+    } else {
+      renderMentorFeedback(result, pid);
+      setCheckButton('submit', 'Check Again', true);
+      refreshSubmitState();
+      proofInput.focus();
     }
-
-    const isLiveAi = result.engine === 'gemini' || result.engine === 'ai';
-    const engineLabel = isLiveAi
-      ? '✨ Evaluated by ' + formatModelLabel(result.modelName || DEFAULT_GEMINI_MODEL)
-      : '⚡ Evaluated by Socratic Rule Engine';
-    const fallbackNoticeHtml = result.fallbackNotice ? `
-      <div class="gemini-fallback-warning">⚠️ ${escapeHtml(result.fallbackNotice)}</div>` : '';
-
-    feedbackMessage.className = 'feedback-message success show';
-    feedbackIcon.innerHTML = '✨';
-    feedbackTitle.textContent = result.title || 'Proof complete!';
-    feedbackExplanation.innerHTML = `
-      <div class="mentor-feedback-flow">
-        <div class="ai-engine-tag ${isLiveAi ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
-        ${fallbackNoticeHtml}
-        <div class="mentor-section established">
-          <div class="mentor-section-header">🌟 Why your proof works</div>
-          <p class="mentor-section-body">${escapeHtml(result.success || 'Your reasoning is complete, rigorous, and logically connected.')}</p>
-        </div>
-        <p class="reward-line">${gain ? `⚡ +${gain} XP` : 'Already proved earlier: great practice!'}${hintsUsed ? ` · ${hintsUsed} hint${hintsUsed === 1 ? '' : 's'} used` : (firstTime ? ' · proved independently' : '')}</p>
-      </div>`;
-    proofInput.readOnly = true;
-    const isLast = currentStep >= coursesData[activeCourseKey].problems.length - 1;
-    setCheckButton('advance', isLast ? 'Finish Lesson' : 'Next Step →', false);
-    celebrateProof(checkBtn);
-  } else {
-    renderMentorFeedback(result, pid);
-    setCheckButton('submit', 'Check Again', true);
+  } catch (renderErr) {
+    console.error('Error rendering feedback:', renderErr);
+    setCheckButton('submit', 'Check Again', false);
     refreshSubmitState();
-    proofInput.focus();
+  } finally {
+    evaluating = false;
+    proofInput.readOnly = false;
   }
 });
 

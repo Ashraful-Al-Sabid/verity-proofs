@@ -169,3 +169,60 @@ test('sanitizeSupabaseConfig fixes trailing slashes, auth/v1 paths, dashboard UR
   assert.equal(swapped.key, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
   assert.equal(swapped.isConfigured, true);
 });
+
+test('gibberish proof evaluates to reconsider decision without getting stuck or throwing', async (t) => {
+  const originalEnv = { ...process.env };
+  process.env.GEMINI_API_KEY = 'mock-key';
+
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options.method === 'GET' || !url.includes(':generateContent')) {
+      return Response.json({
+        models: [{ name: 'models/gemini-3-flash-preview', supportedGenerationMethods: ['generateContent'] }]
+      });
+    }
+    return Response.json({
+      candidates: [{
+        content: {
+          parts: [{
+            text: JSON.stringify({
+              status: 'reconsider',
+              title: 'Clarifying the Mathematical Objective',
+              established: [],
+              question: 'Can you state what claim you are trying to prove?',
+              nudge: 'Start with the parity of the gears.',
+              done: 0,
+              total: 2
+            })
+          }]
+        }
+      }]
+    });
+  });
+
+  try {
+    const res = {
+      headers: {},
+      code: 200,
+      data: null,
+      setHeader(k, v) { this.headers[k] = v; },
+      status(c) { this.code = c; return this; },
+      json(d) { this.data = d; return this; }
+    };
+
+    await evaluateHandler({
+      method: 'POST',
+      body: {
+        userText: 'dfd dfds as',
+        problem: { id: 'parity_p0', title: 'Deficient Chessboard', text: 'Domino problem' }
+      }
+    }, res);
+
+    assert.equal(res.code, 200);
+    assert.equal(res.data.status, 'reconsider');
+    assert.equal(res.data.title, 'Clarifying the Mathematical Objective');
+    assert.equal(res.data.question, 'Can you state what claim you are trying to prove?');
+    assert.equal(res.data.engine, 'gemini');
+  } finally {
+    process.env = originalEnv;
+  }
+});
