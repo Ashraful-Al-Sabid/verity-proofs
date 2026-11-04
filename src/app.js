@@ -1,3 +1,4 @@
+import { DEFAULT_GEMINI_MODEL, filterGeminiModels, isSupportedGeminiModel } from './lib/gemini-models.js';
 import { guestLoginRequired } from './lib/guest-access.js';
 import { trapDialogFocus } from './lib/dialog.js';
 import { validateEvaluation } from './lib/evaluation-result.js';
@@ -945,7 +946,7 @@ function updateAiStatusBadge() {
   if (!aiStatusDot || !aiStatusLabel || !btnAiStatus) return;
   const hasPersonalKey = !!(state.geminiApiKey && state.geminiApiKey.trim());
   const hasServerAi = !hasPersonalKey && !!state.serverGeminiActive;
-  const m = state.geminiModel || 'gemini-2.5-flash-lite';
+  const m = state.geminiModel || DEFAULT_GEMINI_MODEL;
   const labelText = formatModelLabel(m);
 
   if (hasPersonalKey || hasServerAi) {
@@ -963,7 +964,7 @@ function updateAiStatusBadge() {
 function renderMentorFeedback(result, pid) {
   const isLiveGemini = result.engine === 'gemini';
   const engineLabel = isLiveGemini
-    ? '✨ Evaluated by ' + formatModelLabel(result.modelName || 'gemini-3.8-flash')
+    ? '✨ Evaluated by ' + formatModelLabel(result.modelName || DEFAULT_GEMINI_MODEL)
     : '⚡ Evaluated by Socratic Rule Engine';
 
   const fallbackNoticeHtml = result.fallbackNotice ? `
@@ -1089,7 +1090,7 @@ checkBtn.addEventListener('click', async () => {
 
     const isLiveGemini = result.engine === 'gemini';
     const engineLabel = isLiveGemini
-      ? '✨ Evaluated by ' + formatModelLabel(result.modelName || 'gemini-3.8-flash')
+      ? '✨ Evaluated by ' + formatModelLabel(result.modelName || DEFAULT_GEMINI_MODEL)
       : '⚡ Evaluated by Socratic Rule Engine';
     const fallbackNoticeHtml = result.fallbackNotice ? `
       <div class="gemini-fallback-warning">⚠️ ${escapeHtml(result.fallbackNotice)}</div>` : '';
@@ -1180,10 +1181,10 @@ async function ensureServerConfig() {
           changed = true;
         }
         if (Array.isArray(cfg.availableModels) && cfg.availableModels.length > 0) {
-          state.geminiModels = cfg.availableModels;
+          state.geminiModels = filterGeminiModels(cfg.availableModels);
           changed = true;
         }
-        if (cfg.bestModel && (!state.geminiModel || !state.geminiModels.includes(state.geminiModel))) {
+        if (isSupportedGeminiModel(cfg.bestModel) && (!state.geminiModel || !state.geminiModels.includes(state.geminiModel))) {
           state.geminiModel = cfg.bestModel;
           changed = true;
         }
@@ -1337,8 +1338,9 @@ document.addEventListener('click', (e) => {
 });
 
 function buildModelOptionsHtml(modelsList, currentModel) {
-  const list = (Array.isArray(modelsList) && modelsList.length > 0) ? modelsList.slice() : DEFAULT_GEMINI_MODELS.slice();
-  if (currentModel && !list.includes(currentModel)) {
+  const supported = filterGeminiModels(modelsList);
+  const list = supported.length ? supported : DEFAULT_GEMINI_MODELS.slice();
+  if (isSupportedGeminiModel(currentModel) && !list.includes(currentModel)) {
     list.unshift(currentModel);
   }
   return list.map((m, idx) => {
@@ -1362,7 +1364,7 @@ function openAppModal(type, initialTab) {
       totalProved += provedCount(k);
     });
     const isLive = !!(state.serverGeminiActive || (state.geminiApiKey && state.geminiApiKey.trim()));
-    const curModel = state.geminiModel || 'gemini-2.5-flash-lite';
+    const curModel = state.geminiModel || DEFAULT_GEMINI_MODEL;
     const optionsHtml = buildModelOptionsHtml(state.geminiModels, curModel);
     const signedInName = currentUser
       ? (currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Learner'))

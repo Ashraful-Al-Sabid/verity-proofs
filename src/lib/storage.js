@@ -1,7 +1,8 @@
+import { DEFAULT_GEMINI_MODEL, filterGeminiModels, isSupportedGeminiModel, normalizeGeminiModel } from './gemini-models.js';
 ﻿const STORAGE_KEY = 'verity-progress-v1';
 const record = value => value && typeof value === 'object' && !Array.isArray(value);
 export function initialState() {
-  return { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], guestSubmissions: 0, geminiApiKey: '', geminiModel: 'gemini-2.5-flash-lite', geminiModels: [], supabaseUrl: '', supabaseAnonKey: '', serverGeminiActive: false, authUser: null };
+  return { xp: 0, courses: {}, favorites: {}, lastCourse: null, activity: [], guestSubmissions: 0, geminiApiKey: '', geminiModel: DEFAULT_GEMINI_MODEL, geminiModels: [], supabaseUrl: '', supabaseAnonKey: '', serverGeminiActive: false, authUser: null };
 }
 export function loadState() {
   try {
@@ -17,11 +18,12 @@ export function loadState() {
     state.guestSubmissions = Number.isFinite(saved.guestSubmissions)
       ? Math.max(0, Math.floor(saved.guestSubmissions))
       : (!saved.authUser ? state.activity.length : 0);
-    state.geminiModels = Array.isArray(state.geminiModels) ? state.geminiModels.filter(model => typeof model === 'string') : [];
+    state.geminiModels = filterGeminiModels(state.geminiModels);
     for (const key of ['geminiApiKey', 'geminiModel', 'supabaseUrl', 'supabaseAnonKey']) {
       if (typeof state[key] !== 'string') state[key] = initialState()[key];
     }
-    if (!state.geminiModel || /3\.5|3\.6|3\.8/.test(state.geminiModel)) state.geminiModel = state.geminiModels[0] || initialState().geminiModel;
+    state.geminiModel = normalizeGeminiModel(state.geminiModel);
+    if (!isSupportedGeminiModel(state.geminiModel)) state.geminiModel = state.geminiModels[0] || DEFAULT_GEMINI_MODEL;
     if (!record(state.authUser) || typeof state.authUser.id !== 'string') state.authUser = null;
     if (state.authUser) {
       if (typeof state.authUser.email !== 'string') state.authUser.email = '';

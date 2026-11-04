@@ -1,3 +1,4 @@
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, filterGeminiModels, isSupportedGeminiModel, scoreGeminiModel } from '../src/lib/gemini-models.js';
 import { validateEvaluation } from '../src/lib/evaluation-result.js';
 import { coursesData } from '../src/data/courses.js';
 import { stepMeta } from '../src/data/rubrics.js';
@@ -5,37 +6,13 @@ import { stepMeta } from '../src/data/rubrics.js';
 // Automatically discovers the best/fastest available model for the API key, caches the winner,
 // and uses hedged requests so proof evaluation completes in < 1 second.
 
-const FALLBACK_FAST_MODELS = [
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash',
-  'gemini-2.5-flash'
-];
+const FALLBACK_FAST_MODELS = DEFAULT_GEMINI_MODELS;
 
 let cachedKeySuffix = '';
 let cachedVerifiedModel = '';
 let cachedAvailableModels = [];
 let cachedTimestamp = 0;
 
-function scoreModelSpeed(id) {
-  let score = 0;
-  if (id === 'gemini-2.5-flash-lite') score += 1000;
-  else if (id === 'gemini-2.0-flash') score += 950;
-  else if (id === 'gemini-2.0-flash-lite') score += 920;
-  else if (id === 'gemini-1.5-flash') score += 880;
-  else if (id === 'gemini-2.5-flash') score += 850;
-  else if (id.includes('flash-lite') || id.includes('-lite')) score += 700;
-  else if (id.includes('flash')) score += 600;
-  else if (id.includes('pro')) score += 300;
-
-  if (/exp|preview|\d{2}-\d{2}|\d{4}|001|002|8b/i.test(id)) score -= 50;
-  if (id.endsWith('-latest')) score += 15;
-
-  const verMatch = id.match(/gemini-(\d+(?:\.\d+)?)/);
-  if (verMatch) score += parseFloat(verMatch[1]) * 20;
-  return score;
-}
 
 async function getDiscoveredModels(apiKey, clientModels) {
   const keySuffix = apiKey.slice(-6);
@@ -50,9 +27,7 @@ async function getDiscoveredModels(apiKey, clientModels) {
   }
 
   if (Array.isArray(clientModels) && clientModels.length > 0) {
-    const validClient = clientModels
-      .map(m => String(m).replace(/^models\//, '').trim())
-      .filter(m => m.startsWith('gemini-') && !/3\.5|3\.6|3\.8/.test(m));
+    const validClient = filterGeminiModels(clientModels);
     if (validClient.length > 0) {
       cachedKeySuffix = keySuffix;
       cachedAvailableModels = validClient;
@@ -76,11 +51,11 @@ async function getDiscoveredModels(apiKey, clientModels) {
         const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
         if (!methods.includes('generateContent')) return;
         const id = (m.name || '').replace(/^models\//, '');
-        if (!id.startsWith('gemini-')) return;
+        if (!isSupportedGeminiModel(id)) return;
         if (/embedding|imagen|veo|aqa|audio|tts|image|vision|robotics|computer-use|learnlm|thinking|live/i.test(id)) return;
         usable.push(id);
       });
-      usable.sort((a, b) => scoreModelSpeed(b) - scoreModelSpeed(a));
+      usable.sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
       if (usable.length > 0) {
         cachedKeySuffix = keySuffix;
         cachedAvailableModels = usable.slice(0, 6);
@@ -125,6 +100,7 @@ function parseGeminiResponseJson(json, rubric, respondedModel) {
 }
 
 async function callSingleModel(apiKey, modelName, promptText, rubric) {
+  if (!isSupportedGeminiModel(modelName)) throw new Error('Only Gemini 3 or newer text models are supported.');
   const genConfig = {
     temperature: 0.1,
     maxOutputTokens: 350,
@@ -175,7 +151,7 @@ export default async function handler(req, res) {
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_GEMINI_API_KEY ||
     ''
-  ).trim();
+  ).trim().replace(/^["']|["']$/g, '').trim();
 
   if (!apiKey) {
     return res.status(500).json({
@@ -250,7 +226,7 @@ export default async function handler(req, res) {
     });
 
     const primaryModel = candidates[0];
-    const secondaryModel = candidates[1] || 'gemini-2.0-flash';
+    const secondaryModel = candidates[1] || DEFAULT_GEMINI_MODEL;
 
     let winningResult = null;
 

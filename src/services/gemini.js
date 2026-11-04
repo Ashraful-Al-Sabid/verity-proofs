@@ -1,17 +1,11 @@
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, filterGeminiModels, isSupportedGeminiModel, scoreGeminiModel } from '../lib/gemini-models.js';
 import { validateEvaluation } from '../lib/evaluation-result.js';
 import { stepMeta } from '../data/rubrics.js';
 
 export function createGeminiService({ getState, saveState, updateAiStatusBadge }) {
-  const DEFAULT_GEMINI_MODELS = [
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-2.5-flash'
-  ];
 
   function formatModelLabel(m) {
-    return (m || 'gemini-2.5-flash-lite')
+    return (m || DEFAULT_GEMINI_MODEL)
       .replace(/^models\//, '')
       .replace('gemini-', 'Gemini ')
       .replace('-flash-lite', ' Flash Lite')
@@ -19,26 +13,6 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
       .replace('-pro', ' Pro');
   }
 
-  function scoreGeminiModel(id) {
-    let score = 0;
-    if (id === 'gemini-2.5-flash-lite') score += 1000;
-    else if (id === 'gemini-2.0-flash') score += 950;
-    else if (id === 'gemini-2.0-flash-lite') score += 920;
-    else if (id === 'gemini-1.5-flash') score += 880;
-    else if (id === 'gemini-2.5-flash') score += 850;
-    else if (id.includes('flash-lite') || id.includes('-lite')) score += 700;
-    else if (id.includes('flash')) score += 600;
-    else if (id.includes('pro')) score += 300;
-
-    if (/exp|preview|\d{2}-\d{2}|\d{4}|001|002|8b/i.test(id)) score -= 50;
-    if (id.endsWith('-latest')) score += 15;
-
-    const verMatch = id.match(/gemini-(\d+(?:\.\d+)?)/);
-    if (verMatch) {
-      score += parseFloat(verMatch[1]) * 20;
-    }
-    return score;
-  }
 
   async function fetchAvailableGeminiModels(apiKey) {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models?key=' + encodeURIComponent(apiKey);
@@ -66,7 +40,7 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
         const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
         if (!methods.includes('generateContent')) return;
         const id = (m.name || '').replace(/^models\//, '');
-        if (!id.startsWith('gemini-')) return;
+        if (!isSupportedGeminiModel(id)) return;
         if (/embedding|imagen|veo|aqa|audio|tts|image|vision|robotics|computer-use|learnlm|thinking-exp|live/i.test(id)) return;
         usable.push(id);
       });
@@ -90,6 +64,7 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
 
   async function probeSingleModel(apiKey, modelId) {
     const cleanName = (modelId || '').replace(/^models\//, '');
+    if (!isSupportedGeminiModel(cleanName)) throw new Error('Only Gemini 3 or newer text models are supported.');
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cleanName) + ':generateContent?key=' + encodeURIComponent(apiKey);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -127,7 +102,7 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
 
     // Build ordered candidate list to probe so we verify a model that actually responds 200 OK
     const candidates = [];
-    if (cleanPref && (!discovered.length || discovered.includes(cleanPref))) {
+    if (isSupportedGeminiModel(cleanPref) && (!discovered.length || discovered.includes(cleanPref))) {
       candidates.push(cleanPref);
     }
     discovered.forEach(m => {
@@ -209,7 +184,8 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
     async function postToModel(mName, maxRetries) {
-      const cleanName = (mName || 'gemini-2.5-flash-lite').replace(/^models\//, '');
+      const cleanName = (mName || DEFAULT_GEMINI_MODEL).replace(/^models\//, '');
+      if (!isSupportedGeminiModel(cleanName)) throw new Error('Only Gemini 3 or newer text models are supported.');
       const targetUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cleanName) + ':generateContent?key=' + encodeURIComponent(apiKey);
       const retries = typeof maxRetries === 'number' ? maxRetries : 1;
       let usePlain = false;
@@ -258,6 +234,7 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
     }
 
     try {
+      getState().geminiModels = filterGeminiModels(getState().geminiModels);
       // Ensure we have discovered real models for this key
       if (!Array.isArray(getState().geminiModels) || getState().geminiModels.length === 0) {
         try {
@@ -269,9 +246,9 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
         ? getState().geminiModels
         : DEFAULT_GEMINI_MODELS;
 
-      let rawModel = (model || getState().geminiModel || knownModels[0] || 'gemini-2.5-flash-lite').replace(/^models\//, '');
+      let rawModel = (model || getState().geminiModel || knownModels[0] || DEFAULT_GEMINI_MODEL).replace(/^models\//, '');
       if (!knownModels.includes(rawModel)) {
-        rawModel = knownModels[0] || 'gemini-2.5-flash-lite';
+        rawModel = knownModels[0] || DEFAULT_GEMINI_MODEL;
       }
 
       const candidateModels = [rawModel];
@@ -378,8 +355,8 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
             curatedSolution: problem.curatedSolution
           },
           rubric,
-          model: model || getState().geminiModel || 'gemini-2.5-flash-lite',
-          availableModels: getState().geminiModels || []
+          model: filterGeminiModels([model, getState().geminiModel])[0] || DEFAULT_GEMINI_MODEL,
+          availableModels: filterGeminiModels(getState().geminiModels)
         }),
         signal: controller.signal
       });
@@ -392,10 +369,10 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
       const data = await res.json();
       let stateUpdated = false;
       if (Array.isArray(data.availableModels) && data.availableModels.length > 0) {
-        getState().geminiModels = data.availableModels;
+        getState().geminiModels = filterGeminiModels(data.availableModels);
         stateUpdated = true;
       }
-      if (data.modelName && data.modelName !== getState().geminiModel) {
+      if (isSupportedGeminiModel(data.modelName) && data.modelName !== getState().geminiModel) {
         getState().geminiModel = data.modelName;
         stateUpdated = true;
       }
