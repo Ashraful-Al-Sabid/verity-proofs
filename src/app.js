@@ -3,7 +3,7 @@ import { sanitizeSupabaseConfig } from './lib/supabase-config.js';
 import { guestLoginRequired } from './lib/guest-access.js';
 import { trapDialogFocus } from './lib/dialog.js';
 import { validateEvaluation } from './lib/evaluation-result.js';
-import { authenticate, signInWithGoogle } from './services/auth.js';
+import { authenticate } from './services/auth.js';
 import { renderSettings } from './views/dialogs/settings.js';
 import { renderAbout } from './views/dialogs/about.js';
 import { renderHelp } from './views/dialogs/help.js';
@@ -1269,11 +1269,6 @@ function initSupabase() {
         const { data: listener } = supabaseClient.auth.onAuthStateChange((event, session) => {
           if (session?.user) {
             setActiveUser(session.user);
-            if (typeof window !== 'undefined' && window.location.search.includes('code=')) {
-              const u = new URL(window.location.href);
-              u.searchParams.delete('code');
-              window.history.replaceState({}, document.title, u.pathname + (u.search ? u.search : '') + u.hash);
-            }
             if (event === 'SIGNED_IN') {
               setTimeout(async () => {
                 if (currentUser?.id !== session.user.id) return;
@@ -1369,34 +1364,6 @@ function buildModelOptionsHtml(modelsList, currentModel) {
   }).join('');
 }
 
-async function handleGoogleLogin() {
-  const activeMsg = document.getElementById('auth-status-msg') || document.getElementById('gate-status-msg');
-  try {
-    await ensureServerConfig();
-    if (!supabaseClient) {
-      throw new Error('Account sign-in is unavailable. Supabase is not configured yet. Continue as a guest or try Demo Login.');
-    }
-    if (activeMsg) {
-      activeMsg.style.display = 'block';
-      activeMsg.className = 'auth-status-msg';
-      activeMsg.textContent = 'Redirecting to Google…';
-    }
-    await signInWithGoogle(supabaseClient);
-  } catch (err) {
-    if (activeMsg) {
-      activeMsg.style.display = 'block';
-      activeMsg.className = 'auth-status-msg error';
-      let msg = err.message || 'Google sign-in error.';
-      if (/provider is not enabled/i.test(msg)) {
-        msg = 'Google sign-in is not enabled in your Supabase dashboard yet. Please go to Authentication → Providers → Google in your Supabase project to enable it.';
-      }
-      activeMsg.textContent = msg;
-    } else {
-      alert(err.message || 'Google sign-in failed');
-    }
-  }
-}
-
 function openAppModal(type, initialTab) {
   toggleMenu(false);
   appModalBackdrop.style.display = 'flex';
@@ -1475,7 +1442,6 @@ function openAppModal(type, initialTab) {
     appModalTitle.textContent = currentAuthMode === 'signup' ? 'Create Free Account' : 'Sign In to Verity';
     appModalBody.innerHTML = renderAuth({ currentAuthMode });
 
-    const googleAuthBtn = document.getElementById('btn-auth-google');
     const demoAuthBtn = document.getElementById('btn-auth-demo');
     const tabSignIn = document.getElementById('auth-tab-signin');
     const tabSignUp = document.getElementById('auth-tab-signup');
@@ -1501,7 +1467,6 @@ function openAppModal(type, initialTab) {
       statusMsg.style.display = 'none';
     }
 
-    if (googleAuthBtn) googleAuthBtn.addEventListener('click', handleGoogleLogin);
     if (demoAuthBtn) demoAuthBtn.addEventListener('click', handleDemoLogin);
     tabSignIn.addEventListener('click', () => setAuthMode('signin'));
     tabSignUp.addEventListener('click', () => setAuthMode('signup'));
@@ -1565,13 +1530,11 @@ function openAppModal(type, initialTab) {
     appModalTitle.textContent = 'Login to Continue';
     appModalBody.innerHTML = renderGuestGate();
 
-    const gateGoogle = document.getElementById('btn-gate-google');
     const gateDemo = document.getElementById('btn-gate-demo');
     const gateSignUp = document.getElementById('btn-gate-signup');
     const gateSignIn = document.getElementById('btn-gate-signin');
     const gateDismiss = document.getElementById('btn-gate-dismiss');
 
-    if (gateGoogle) gateGoogle.addEventListener('click', handleGoogleLogin);
     if (gateDemo) gateDemo.addEventListener('click', handleDemoLogin);
     if (gateSignUp) gateSignUp.addEventListener('click', () => openAppModal('auth', 'signup'));
     if (gateSignIn) gateSignIn.addEventListener('click', () => openAppModal('auth', 'signin'));

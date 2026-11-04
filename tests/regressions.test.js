@@ -47,19 +47,6 @@ test('authentication preserves password whitespace and does not mask provider er
   await assert.rejects(authenticate(null, { mode: 'signin' }), /unavailable/);
 });
 
-test('Google sign-in passes provider and redirectTo to Supabase auth', async () => {
-  let oauthConfig;
-  const client = { auth: { signInWithOAuth: async params => {
-    oauthConfig = params;
-    return { data: { provider: 'google', url: 'https://accounts.google.com/o/oauth2/auth...' }, error: null };
-  } } };
-  const res = await authenticate(client, { mode: 'google', redirectTo: 'https://verity.app/callback' });
-  assert.equal(oauthConfig.provider, 'google');
-  assert.equal(oauthConfig.options.redirectTo, 'https://verity.app/callback');
-  assert.equal(res.isOAuthRedirect, true);
-  await assert.rejects(authenticate(null, { mode: 'google' }), /unavailable/);
-});
-
 test('valid JSON with malformed storage fields cannot break startup', () => {
   globalThis.localStorage = { getItem: () => JSON.stringify({ xp: -10, courses: null, favorites: [], activity: [null, 1], geminiModels: [42], geminiApiKey: {}, authUser: 'bad' }) };
   try {
