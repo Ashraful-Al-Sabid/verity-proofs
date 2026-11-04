@@ -1,4 +1,5 @@
 import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, isSupportedGeminiModel, scoreGeminiModel } from '../src/lib/gemini-models.js';
+import { sanitizeSupabaseConfig } from '../src/lib/supabase-config.js';
 // Vercel Serverless Function: Public App Configuration & Auto Model Discovery
 // Automatically discovers the fastest working Gemini model for the configured GEMINI_API_KEY.
 
@@ -90,21 +91,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const supabaseUrl = (
+  const rawSupabaseUrl = (
     process.env.SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.VITE_SUPABASE_URL ||
     ''
-  ).trim();
+  );
 
-  const supabaseAnonKey = (
+  const rawSupabaseKey = (
     process.env.SUPABASE_PUBLISHABLE_KEY ||
     process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.VITE_SUPABASE_ANON_KEY ||
     ''
-  ).trim();
+  );
+
+  const { url: supabaseUrl, key: supabaseAnonKey } = sanitizeSupabaseConfig(rawSupabaseUrl, rawSupabaseKey);
 
   const geminiApiKey = (
     process.env.GEMINI_API_KEY ||

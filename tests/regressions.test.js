@@ -8,6 +8,7 @@ import evaluateHandler from '../api/evaluate.js';
 import { celebrateProof, stopCelebration } from '../src/lib/celebration.js';
 import { guestLoginRequired } from '../src/lib/guest-access.js';
 import { renderGuestGate } from '../src/views/dialogs/guestGate.js';
+import { cleanSupabaseUrl, sanitizeSupabaseConfig } from '../src/lib/supabase-config.js';
 
 test('sign-up without a session asks for email confirmation instead of signing in', async () => {
   const result = await authenticate({ auth: { signUp: async () => ({ data: { user: { id: 'unconfirmed' }, session: null } }) } },
@@ -154,4 +155,17 @@ test('confetti respects reduced motion and removes its canvas after finishing or
       else delete globalThis[name];
     }
   }
+});
+
+test('sanitizeSupabaseConfig fixes trailing slashes, auth/v1 paths, dashboard URLs, and swapped keys', () => {
+  assert.equal(cleanSupabaseUrl('https://abc123xyz.supabase.co/'), 'https://abc123xyz.supabase.co');
+  assert.equal(cleanSupabaseUrl('https://abc123xyz.supabase.co/auth/v1'), 'https://abc123xyz.supabase.co');
+  assert.equal(cleanSupabaseUrl('https://abc123xyz.supabase.co/rest/v1/'), 'https://abc123xyz.supabase.co');
+  assert.equal(cleanSupabaseUrl('"https://abc123xyz.supabase.co/"'), 'https://abc123xyz.supabase.co');
+  assert.equal(cleanSupabaseUrl('https://supabase.com/dashboard/project/abc123xyz'), 'https://abc123xyz.supabase.co');
+
+  const swapped = sanitizeSupabaseConfig('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...', 'https://abc123xyz.supabase.co/auth/v1');
+  assert.equal(swapped.url, 'https://abc123xyz.supabase.co');
+  assert.equal(swapped.key, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...');
+  assert.equal(swapped.isConfigured, true);
 });

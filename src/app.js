@@ -1,4 +1,5 @@
 import { DEFAULT_GEMINI_MODEL, filterGeminiModels, isSupportedGeminiModel } from './lib/gemini-models.js';
+import { sanitizeSupabaseConfig } from './lib/supabase-config.js';
 import { guestLoginRequired } from './lib/guest-access.js';
 import { trapDialogFocus } from './lib/dialog.js';
 import { validateEvaluation } from './lib/evaluation-result.js';
@@ -1166,10 +1167,9 @@ let serverConfigLoaded = false;
 
 function getSupabaseConfig() {
   const config = window.__VERITY_CONFIG__ || {};
-  const url = (config.supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '').trim();
-  const key = (config.supabaseAnonKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-  const isConfigured = !!(url && key && !url.includes('xyzcompany') && !url.includes('YOUR_PROJECT'));
-  return { url, key, isConfigured };
+  const rawUrl = config.supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '';
+  const rawKey = config.supabaseAnonKey || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  return sanitizeSupabaseConfig(rawUrl, rawKey);
 }
 
 async function ensureServerConfig() {
@@ -1513,7 +1513,11 @@ function openAppModal(type, initialTab) {
       } catch (err) {
         statusMsg.style.display = 'block';
         statusMsg.className = 'auth-status-msg error';
-        statusMsg.textContent = err.message || 'Authentication error. Please check your credentials.';
+        let msg = err.message || 'Authentication error. Please check your credentials.';
+        if (/invalid path/i.test(msg)) {
+          msg = 'Invalid Supabase URL: ensure your SUPABASE_URL is "https://[project-ref].supabase.co" with no trailing slash or /auth/v1 path.';
+        }
+        statusMsg.textContent = msg;
       } finally {
         submitAuthBtn.disabled = false;
         submitAuthBtn.textContent = currentAuthMode === 'signup' ? 'Create Account & Save XP' : 'Sign In';
