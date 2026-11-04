@@ -103,13 +103,13 @@ async function callSingleModel(apiKey, modelName, promptText, rubric) {
   if (!isSupportedGeminiModel(modelName)) throw new Error('Only Gemini 3 or newer text models are supported.');
   const genConfig = {
     temperature: 0.1,
-    maxOutputTokens: 350,
+    maxOutputTokens: 1500,
     responseMimeType: 'application/json'
   };
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 7000);
 
   try {
     const response = await fetch(url, {
@@ -124,7 +124,17 @@ async function callSingleModel(apiKey, modelName, promptText, rubric) {
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`Model ${modelName} HTTP ${response.status}: ${errText}`);
+      let msg = `Model ${modelName} HTTP ${response.status}`;
+      try {
+        const j = JSON.parse(errText);
+        if (j.error && j.error.message) msg += `: ${j.error.message}`;
+      } catch (_) {
+        if (errText) msg += `: ${errText.slice(0, 200)}`;
+      }
+      const error = new Error(msg);
+      error.status = response.status;
+      error.modelName = modelName;
+      throw error;
     }
 
     const json = await response.json();
@@ -225,18 +235,20 @@ export default async function handler(req, res) {
       if (!candidates.includes(m)) candidates.push(m);
     });
 
-    const primaryModel = candidates[0];
-    const secondaryModel = candidates[1] || DEFAULT_GEMINI_MODEL;
+    const candidatesToTry = candidates.slice(0, 6);
+    const primaryModel = candidatesToTry[0];
+    const secondaryModel = candidatesToTry[1] || primaryModel;
 
     let winningResult = null;
+    const errors = [];
 
-    // Hedged execution: start primary model immediately; if it hasn't resolved in 1200ms or fails, race secondary model concurrently
+    // Hedged execution between top two candidates, with automatic failover across remaining candidates
     try {
       winningResult = await new Promise((resolve, reject) => {
         let settled = false;
-        let errors = [];
-        let activeCount = 1;
         let hedgeTimer = null;
+        let activeCount = 1;
+        const hedgeErrors = [];
 
         function handleSuccess(resObj) {
           if (settled) return;
@@ -246,7 +258,7 @@ export default async function handler(req, res) {
         }
 
         function handleError(err, isPrimary) {
-          errors.push(err);
+          hedgeErrors.push(err);
           if (isPrimary && hedgeTimer) {
             clearTimeout(hedgeTimer);
             hedgeTimer = null;
@@ -255,7 +267,7 @@ export default async function handler(req, res) {
           activeCount--;
           if (activeCount === 0 && !settled) {
             settled = true;
-            reject(errors[0] || new Error('Primary and secondary models failed.'));
+            reject(hedgeErrors[0] || new Error('Primary and secondary models failed.'));
           }
         }
 
@@ -275,12 +287,23 @@ export default async function handler(req, res) {
           .then(handleSuccess)
           .catch(e => handleError(e, true));
       });
-    } catch (_) {
-      // Fallback to 3rd candidate if top 2 both failed
-      if (candidates[2]) {
-        winningResult = await callSingleModel(apiKey, candidates[2], promptText, rubric);
-      } else {
-        throw _;
+    } catch (topErr) {
+      errors.push(topErr.message || String(topErr));
+      if (cachedVerifiedModel === primaryModel || cachedVerifiedModel === secondaryModel) {
+        cachedVerifiedModel = '';
+      }
+      // Failover across the remaining candidate models in order
+      for (let i = 2; i < candidatesToTry.length; i++) {
+        const nextModel = candidatesToTry[i];
+        try {
+          winningResult = await callSingleModel(apiKey, nextModel, promptText, rubric);
+          if (winningResult) break;
+        } catch (failErr) {
+          errors.push(failErr.message || String(failErr));
+        }
+      }
+      if (!winningResult) {
+        throw new Error(errors[0] || 'All candidate Gemini models failed to evaluate the proof.');
       }
     }
 
@@ -292,7 +315,7 @@ export default async function handler(req, res) {
     console.error('Server Gemini evaluation error:', err.message);
     return res.status(500).json({
       error: err.message || 'Evaluation error',
-      fallbackToLocal: true
+      fallbackToLocal: false
     });
   }
 }

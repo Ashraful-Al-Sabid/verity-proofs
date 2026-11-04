@@ -192,8 +192,8 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
 
       for (let attempt = 0; attempt <= retries; attempt++) {
         const genConfig = usePlain
-          ? { temperature: 0.1, maxOutputTokens: 350 }
-          : { temperature: 0.1, maxOutputTokens: 350, responseMimeType: 'application/json' };
+          ? { temperature: 0.1, maxOutputTokens: 1500 }
+          : { temperature: 0.1, maxOutputTokens: 1500, responseMimeType: 'application/json' };
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -256,12 +256,16 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
         const clean = m.replace(/^models\//, '');
         if (!candidateModels.includes(clean)) candidateModels.push(clean);
       });
+      DEFAULT_GEMINI_MODELS.forEach(m => {
+        const clean = m.replace(/^models\//, '');
+        if (!candidateModels.includes(clean)) candidateModels.push(clean);
+      });
 
       let activeRes = null;
       let respondedModel = rawModel;
       const modelErrors = [];
 
-      for (let i = 0; i < Math.min(candidateModels.length, 4); i++) {
+      for (let i = 0; i < Math.min(candidateModels.length, 6); i++) {
         const m = candidateModels[i];
         if (i > 0 && typeof onStatusUpdate === 'function') {
           onStatusUpdate('✨ Switching to ' + formatModelLabel(m) + '…');

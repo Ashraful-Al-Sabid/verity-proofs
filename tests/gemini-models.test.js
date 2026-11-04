@@ -77,3 +77,28 @@ test('server config and evaluation filter old discovery, client hints and failed
     mock.mock.restore();
   }
 });
+
+test('evaluator automatically recovers when requested model hits 503 high demand spike', async t => {
+  const previous = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = 'test-503-key';
+  t.after(() => { if (previous === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = previous; });
+
+  const attemptedUrls = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options.method === 'GET') {
+      return Response.json(listed(['gemini-3.7-flash', modern, 'gemini-3.5-flash-lite']));
+    }
+    attemptedUrls.push(url);
+    if (url.includes('gemini-3.7-flash')) {
+      return Response.json({ error: { code: 503, message: 'This model is currently experiencing high demand.' } }, { status: 503 });
+    }
+    return Response.json(response);
+  });
+
+  const evaluate = (await import('../api/evaluate.js?scenario=test-503')).default;
+  const evaluationRes = res();
+  await evaluate({ method: 'POST', body: { userText: 'proof', problem: { id: 'parity_p0' }, model: 'gemini-3.7-flash' } }, evaluationRes);
+  assert.equal(evaluationRes.code, 200);
+  assert.ok(isSupportedGeminiModel(evaluationRes.data.modelName));
+  assert.notEqual(evaluationRes.data.modelName, 'gemini-3.7-flash');
+});

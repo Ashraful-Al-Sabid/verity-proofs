@@ -1059,9 +1059,24 @@ checkBtn.addEventListener('click', async () => {
       result = validateEvaluation(result);
     } catch (err) {
       console.error('Gemini evaluation failed:', err);
-      fallbackNotice = 'Gemini error: ' + (err.message || 'Network error') + '. (Using local Socratic engine for this attempt)';
-      result = evaluateProof(userText, cumulativeText, p);
-      result.fallbackNotice = fallbackNotice;
+      if (evalStageTimer) clearInterval(evalStageTimer);
+      if (generation !== evaluationGeneration || currentProblem().id !== pid) return;
+      evaluating = false;
+      updateSolutionButton();
+      proofInput.readOnly = false;
+      session.lastSubmitted[pid] = null;
+      setCheckButton('submit', '✨ Retry with AI', false);
+
+      feedbackMessage.className = 'feedback-message error show';
+      feedbackIcon.innerHTML = '⚠️';
+      feedbackTitle.textContent = 'AI Mentor Temporarily Unavailable';
+      feedbackExplanation.innerHTML = `
+        <div class="mentor-feedback-flow">
+          <div class="ai-engine-tag local">⚠️ AI Mentor Demand Spike</div>
+          <div class="gemini-fallback-warning">${escapeHtml(err.message || 'Google AI models are currently experiencing high demand. Please try again.')}</div>
+          <p class="socratic-prompt-hint" style="margin-top:12px;">Local Socratic engine fallback is disabled. Click <strong>Retry with AI</strong> above to re-evaluate with the AI mentor.</p>
+        </div>`;
+      return;
     }
   } else {
     await new Promise(r => setTimeout(r, 450));

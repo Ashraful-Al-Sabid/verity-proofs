@@ -1,6 +1,13 @@
 // Only explicitly versioned Gemini 3+ text models may receive requests.
 // Unversioned aliases are excluded because they can resolve to older models.
-export const DEFAULT_GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3-flash-preview'];
+export const DEFAULT_GEMINI_MODELS = [
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.8-flash',
+  'gemini-3.7-flash'
+];
 export const DEFAULT_GEMINI_MODEL = DEFAULT_GEMINI_MODELS[0];
 
 export function normalizeGeminiModel(value) {
