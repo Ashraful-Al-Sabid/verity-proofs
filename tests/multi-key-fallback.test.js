@@ -244,4 +244,122 @@ test('custom env var names (GEMINI_API_KEY1, GROQ_KEY) and gsk_ keys in GEMINI v
   }
 });
 
+test('evaluator never selects zero-quota gemini-3.1-pro-preview ahead of gemini-3-flash-preview', async (t) => {
+  const originalEnv = { ...process.env };
+  process.env.GEMINI_API_KEY = 'free-tier-key-1';
+  delete process.env.GEMINI_API_KEY_2;
+  delete process.env.GROQ_API_KEY;
+
+  const calledModels = [];
+
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options.method === 'GET') {
+      return Response.json({
+        models: [
+          { name: 'models/gemini-3.1-pro-preview', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/gemini-3-flash-preview', supportedGenerationMethods: ['generateContent'] }
+        ]
+      });
+    }
+    const m = url.match(/models\/([^:?]+)/)?.[1];
+    calledModels.push(m);
+    if (m === 'gemini-3.1-pro-preview') {
+      return Response.json({ error: { code: 429, message: 'limit: 0, model: gemini-3.1-pro' } }, { status: 429 });
+    }
+    return Response.json({
+      candidates: [{
+        content: {
+          parts: [{
+            text: JSON.stringify({
+              status: 'complete',
+              title: 'Valid proof',
+              established: ['Step 1'],
+              success: 'Complete.',
+              done: 1,
+              total: 1
+            })
+          }]
+        }
+      }]
+    });
+  });
+
+  try {
+    const req = {
+      method: 'POST',
+      body: {
+        userText: 'Each domino covers 1 black and 1 white square.',
+        problem: { id: 'parity_p0', title: 'Deficient Chessboard', text: 'Domino problem' },
+        model: 'gemini-3.1-pro-preview',
+        availableModels: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview']
+      }
+    };
+    const res = mockRes();
+    await evaluateHandler(req, res);
+    assert.equal(res.code, 200);
+    assert.equal(res.data.modelName, 'gemini-3-flash-preview');
+    assert.equal(calledModels[0], 'gemini-3-flash-preview');
+  } finally {
+    process.env = originalEnv;
+  }
+});
+
+test('fallback AI auto-discovers available model via /models when default model returns 404 model_not_found', async (t) => {
+  const originalEnv = { ...process.env };
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY_2;
+  process.env.GROQ_API_KEY = 'gsk_custom_project_key';
+
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/models')) {
+      return Response.json({
+        data: [
+          { id: 'whisper-large-v3', active: true },
+          { id: 'openai/gpt-oss-120b', active: true }
+        ]
+      });
+    }
+    const body = JSON.parse(options.body);
+    if (body.model === 'llama-3.3-70b-versatile') {
+      return Response.json({
+        error: { message: 'The model does not exist or you do not have access to it.', code: 'model_not_found' }
+      }, { status: 404 });
+    }
+    if (body.model === 'openai/gpt-oss-120b') {
+      return Response.json({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              status: 'complete',
+              title: 'Discovered model worked',
+              established: ['Parity holds'],
+              success: 'Proved via discovered model.',
+              done: 2,
+              total: 2
+            })
+          }
+        }]
+      });
+    }
+    throw new Error('Unexpected model: ' + body.model);
+  });
+
+  try {
+    const req = {
+      method: 'POST',
+      body: {
+        userText: 'Each domino covers 1 black and 1 white square.',
+        problem: { id: 'parity_p0', title: 'Deficient Chessboard', text: 'Domino problem' }
+      }
+    };
+    const res = mockRes();
+    await evaluateHandler(req, res);
+    assert.equal(res.code, 200);
+    assert.equal(res.data.modelName, 'openai/gpt-oss-120b');
+  } finally {
+    process.env = originalEnv;
+  }
+});
+
+
 

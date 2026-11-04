@@ -13,7 +13,7 @@ function res() { return { setHeader() {}, status(code) { this.code = code; retur
 
 test('policy excludes old versions, ambiguous aliases and specialized models', () => {
   assert.deepEqual(filterGeminiModels([old, 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-flash-latest', 'gemini-3-pro-image-preview', null, modern, 'models/' + modern]), [modern]);
-  assert.deepEqual(filterGeminiModels([modern, 'gemini-3.1-pro-preview']), ['gemini-3.1-pro-preview', modern]);
+  assert.deepEqual(filterGeminiModels([modern, 'gemini-3.1-pro-preview']), [modern, 'gemini-3.1-pro-preview']);
   assert.deepEqual(filterGeminiModels(['gemini-3.8-flash', modern, 'gemini-2.5-flash']), [modern, 'gemini-3.8-flash']);
 });
 

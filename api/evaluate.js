@@ -2,7 +2,7 @@ import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, filterGeminiModels, isSupp
 import { validateEvaluation } from '../src/lib/evaluation-result.js';
 import { coursesData } from '../src/data/courses.js';
 import { stepMeta } from '../src/data/rubrics.js';
-import { getGeminiApiKeys, hasFallbackAiKey, getFallbackAiProvider } from '../src/lib/ai-config.js';
+import { getGeminiApiKeys, hasFallbackAiKey, getFallbackAiProvider, getFallbackAiProviders } from '../src/lib/ai-config.js';
 
 export { getGeminiApiKeys };
 // Vercel Serverless Function: Ultra-Fast Multi-Key Gemini + Fallback AI Proof Evaluator
@@ -14,6 +14,7 @@ let cachedVerifiedModel = '';
 let cachedAvailableModels = [];
 let cachedTimestamp = 0;
 let lastWorkingKey = '';
+let cachedFallbackModelByKey = {};
 
 function normalizeEvaluationPayload(evalResult, rubric) {
   if (!evalResult || typeof evalResult !== 'object') {
@@ -158,18 +159,59 @@ function parseGeminiResponseJson(json, rubric, respondedModel) {
   return normalizeEvaluationPayload(evalResult, rubric);
 }
 
+function scoreFallbackModelId(id) {
+  const lower = String(id || '').toLowerCase();
+  if (/whisper|tts|guard|safeguard|embed|moderation|dall-e|audio|realtime|transcribe|playai|orpheus|vision|rerank|tool-use/i.test(lower)) {
+    return -1000;
+  }
+  let score = 0;
+  if (lower.includes('llama-3.3-70b')) score += 500;
+  else if (lower.includes('llama-4')) score += 480;
+  else if (lower.includes('gpt-oss-120b')) score += 470;
+  else if (lower.includes('gpt-4o-mini') || lower.includes('gpt-4.1-mini')) score += 460;
+  else if (lower.includes('qwen3-32b') || lower.includes('qwen-qwq')) score += 440;
+  else if (lower.includes('llama-3.1-8b')) score += 420;
+  else if (lower.includes('gpt-oss-20b')) score += 410;
+  else if (lower.includes('llama')) score += 350;
+  else if (lower.includes('gpt')) score += 340;
+  else if (lower.includes('qwen') || lower.includes('deepseek') || lower.includes('gemma') || lower.includes('mixtral')) score += 300;
+  if (lower.includes('versatile') || lower.includes('instruct') || lower.includes('instant')) score += 50;
+  return score;
+}
+
+async function discoverProviderModels(modelsEndpoint, key) {
+  if (!modelsEndpoint || !key) return [];
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2500);
+  try {
+    const res = await fetch(modelsEndpoint, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${key}` },
+      signal: controller.signal
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const rawList = Array.isArray(data?.data) ? data.data : [];
+    const candidates = rawList
+      .filter(m => m && typeof m.id === 'string' && m.active !== false)
+      .map(m => m.id)
+      .filter(id => scoreFallbackModelId(id) >= 0);
+    candidates.sort((a, b) => scoreFallbackModelId(b) - scoreFallbackModelId(a));
+    return candidates.slice(0, 4);
+  } catch (_) {
+    return [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function callSingleFallbackModel(endpoint, key, model, promptText, rubric) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6500);
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify({
+    const makePost = async (useJsonFormat) => {
+      const payload = {
         model,
         messages: [
           {
@@ -178,16 +220,33 @@ async function callSingleFallbackModel(endpoint, key, model, promptText, rubric)
           },
           { role: 'user', content: promptText }
         ],
-        response_format: { type: 'json_object' },
         temperature: 0.1,
         max_tokens: 1024
-      }),
-      signal: controller.signal
-    });
+      };
+      if (useJsonFormat) {
+        payload.response_format = { type: 'json_object' };
+      }
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    };
+
+    let res = await makePost(true);
+    if (res.status === 400) {
+      res = await makePost(false);
+    }
 
     if (!res.ok) {
       const txt = await res.text();
-      throw new Error(`Fallback AI (${model}) HTTP ${res.status}: ${txt.slice(0, 150)}`);
+      const err = new Error(`Fallback AI (${model}) HTTP ${res.status}: ${txt.slice(0, 150)}`);
+      err.status = res.status;
+      throw err;
     }
 
     const data = await res.json();
@@ -205,23 +264,56 @@ async function callSingleFallbackModel(endpoint, key, model, promptText, rubric)
 }
 
 export async function callFallbackAi(promptText, rubric) {
-  const fb = getFallbackAiProvider();
-  if (!fb) return null;
+  const providers = getFallbackAiProviders();
+  if (providers.length === 0) return null;
 
-  const keysToTry = Array.isArray(fb.allKeys) && fb.allKeys.length > 0 ? fb.allKeys : [fb.key];
-  const modelsToTry = [fb.model, fb.backupModel].filter(Boolean);
-  let lastErr = null;
+  const fallbackErrors = [];
 
-  for (const key of keysToTry) {
-    for (const model of modelsToTry) {
+  for (const fb of providers) {
+    const keysToTry = Array.isArray(fb.allKeys) && fb.allKeys.length > 0 ? fb.allKeys : [fb.key];
+
+    for (const key of keysToTry) {
+      const keyId = key.slice(-6);
+      const cachedModel = cachedFallbackModelByKey[keyId];
+      const initialModels = cachedModel
+        ? [cachedModel, ...fb.candidateModels.filter(m => m !== cachedModel)]
+        : [...(fb.candidateModels || [fb.model])];
+
+      // 1. Try the primary model first
+      const firstModel = initialModels[0];
       try {
-        return await callSingleFallbackModel(fb.endpoint, key, model, promptText, rubric);
-      } catch (err) {
-        lastErr = err;
+        const res = await callSingleFallbackModel(fb.endpoint, key, firstModel, promptText, rubric);
+        cachedFallbackModelByKey[keyId] = firstModel;
+        return res;
+      } catch (firstErr) {
+        fallbackErrors.push(firstErr.message);
+        // If 401/403 invalid API key, move to next key immediately
+        if (firstErr.status === 401 || firstErr.status === 403) {
+          continue;
+        }
+      }
+
+      // 2. Dynamically discover which models this key actually has access to via GET /models
+      const discoveredModels = await discoverProviderModels(fb.modelsEndpoint, key);
+      const remainingToTry = [
+        ...discoveredModels.filter(m => m !== firstModel),
+        ...initialModels.slice(1).filter(m => !discoveredModels.includes(m))
+      ].slice(0, 3);
+
+      for (const nextModel of remainingToTry) {
+        try {
+          const res = await callSingleFallbackModel(fb.endpoint, key, nextModel, promptText, rubric);
+          cachedFallbackModelByKey[keyId] = nextModel;
+          return res;
+        } catch (err) {
+          fallbackErrors.push(err.message);
+          if (err.status === 401 || err.status === 403) break;
+        }
       }
     }
   }
-  throw lastErr || new Error('Fallback AI evaluation failed.');
+
+  throw new Error(fallbackErrors[0] || 'Fallback AI evaluation failed.');
 }
 
 async function callSingleModel(apiKey, modelName, promptText, rubric, timeoutMs = 4500) {
@@ -282,14 +374,15 @@ async function evaluateWithKey(apiKey, cleanReq, promptText, rubric, availableMo
   const discovered = await getDiscoveredModels(apiKey, availableModels);
 
   const candidates = [];
-  if (cachedVerifiedModel && discovered.includes(cachedVerifiedModel) && !/^gemini-3\.[5-9]/i.test(cachedVerifiedModel)) {
+  if (cachedVerifiedModel && discovered.includes(cachedVerifiedModel) && !/^gemini-3\.[1-9]|-pro/i.test(cachedVerifiedModel)) {
     candidates.push(cachedVerifiedModel);
   }
-  if (cleanReq && isSupportedGeminiModel(cleanReq) && !/^gemini-3\.[5-9]/i.test(cleanReq) && !candidates.includes(cleanReq)) {
-    candidates.push(cleanReq);
-  }
-  if (discovered.includes(DEFAULT_GEMINI_MODEL) && !candidates.includes(DEFAULT_GEMINI_MODEL)) {
+  // Always ensure DEFAULT_GEMINI_MODEL ('gemini-3-flash-preview') is the primary candidate before any '-pro' or '3.x' model
+  if (!candidates.includes(DEFAULT_GEMINI_MODEL)) {
     candidates.push(DEFAULT_GEMINI_MODEL);
+  }
+  if (cleanReq && isSupportedGeminiModel(cleanReq) && !/^gemini-3\.[1-9]|-pro/i.test(cleanReq) && !candidates.includes(cleanReq)) {
+    candidates.push(cleanReq);
   }
   discovered.forEach(m => {
     if (!candidates.includes(m)) candidates.push(m);
@@ -298,11 +391,9 @@ async function evaluateWithKey(apiKey, cleanReq, promptText, rubric, availableMo
     if (!candidates.includes(m)) candidates.push(m);
   });
 
-  // When multiple keys or fallback AI exist, only try top 1-2 fast models per key so we rotate keys in < 2s
-  const maxModels = fastFail ? Math.min(2, discovered.length || 1) : 3;
+  const maxModels = fastFail ? Math.min(2, candidates.length) : 3;
   const candidatesToTry = candidates.slice(0, maxModels);
   const primaryModel = candidatesToTry[0];
-  const secondaryModel = candidatesToTry[1];
   const perCallTimeout = fastFail ? 3800 : 5000;
 
   let winningResult = null;
@@ -315,9 +406,12 @@ async function evaluateWithKey(apiKey, cleanReq, promptText, rubric, availableMo
     if (cachedVerifiedModel === primaryModel) {
       cachedVerifiedModel = '';
     }
-    // If another key or fallback provider is available and primary model hit quota/auth error, rotate key immediately
-    const isKeyQuotaOrAuth = primaryErr.status === 429 || primaryErr.status === 400 || primaryErr.status === 403 ||
-      /quota|429|resource_exhausted|rate_limit|exceeded|api_key_invalid/i.test(primaryErr.message || '');
+    // Only fast-fail the entire key if the non-pro primary model hit a real quota (>0) or auth error
+    const isZeroLimitPro = /limit:\s*0\b/i.test(primaryErr.message || '') || primaryModel.includes('-pro');
+    const isKeyQuotaOrAuth = !isZeroLimitPro && (
+      primaryErr.status === 429 || primaryErr.status === 400 || primaryErr.status === 403 ||
+      /quota|429|resource_exhausted|rate_limit|exceeded|api_key_invalid/i.test(primaryErr.message || '')
+    );
     if (fastFail && isKeyQuotaOrAuth) {
       throw primaryErr;
     }
@@ -365,7 +459,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // Prioritize the last known working Gemini key so exhausted keys don't add latency on subsequent calls
   const geminiKeys = [...rawGeminiKeys];
   if (lastWorkingKey && geminiKeys.includes(lastWorkingKey) && geminiKeys[0] !== lastWorkingKey) {
     geminiKeys.splice(geminiKeys.indexOf(lastWorkingKey), 1);
@@ -427,7 +520,6 @@ export default async function handler(req, res) {
 
     // 1. Try Gemini key(s), rotating immediately on error or quota exhaustion
     for (let i = 0; i < geminiKeys.length; i++) {
-      // If we already spent > 4.5s on earlier keys and have a fast fallback (Groq), jump straight to fallback
       if (i > 0 && hasFallback && (Date.now() - startTime) > 4500) {
         break;
       }
