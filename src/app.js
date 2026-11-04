@@ -1018,6 +1018,9 @@ checkBtn.addEventListener('click', async () => {
   const cumulativeText = session.history[pid].join(' ').slice(-100000);
   updateSolutionButton();
 
+  if (!serverConfigLoaded && !state.serverGeminiActive && !(state.geminiApiKey && state.geminiApiKey.trim())) {
+    try { await fetchServerConfig(); } catch (_) {}
+  }
   const hasPersonalKey = !!(state.geminiApiKey && state.geminiApiKey.trim());
   const usingGemini = hasPersonalKey || !!state.serverGeminiActive;
 
@@ -1047,10 +1050,21 @@ checkBtn.addEventListener('click', async () => {
   if (usingGemini) {
     try {
       if (hasPersonalKey) {
-        result = await callGeminiEvaluation(userText, cumulativeText, p, state.geminiApiKey, state.geminiModel, (statusText) => {
-          if (generation !== evaluationGeneration) return;
-          checkBtn.innerHTML = '<span class="ai-evaluating-state"><span class="ai-spinner"></span> ' + escapeHtml(statusText) + '</span>';
-        });
+        try {
+          result = await callGeminiEvaluation(userText, cumulativeText, p, state.geminiApiKey, state.geminiModel, (statusText) => {
+            if (generation !== evaluationGeneration) return;
+            checkBtn.innerHTML = '<span class="ai-evaluating-state"><span class="ai-spinner"></span> ' + escapeHtml(statusText) + '</span>';
+          });
+        } catch (personalErr) {
+          if (state.serverGeminiActive) {
+            result = await callServerGeminiEvaluation(userText, cumulativeText, p, state.geminiModel, (statusText) => {
+              if (generation !== evaluationGeneration) return;
+              checkBtn.innerHTML = '<span class="ai-evaluating-state"><span class="ai-spinner"></span> ' + escapeHtml(statusText) + '</span>';
+            });
+          } else {
+            throw personalErr;
+          }
+        }
       } else {
         result = await callServerGeminiEvaluation(userText, cumulativeText, p, state.geminiModel, (statusText) => {
           if (generation !== evaluationGeneration) return;

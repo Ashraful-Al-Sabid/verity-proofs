@@ -224,3 +224,24 @@ test('api/config reports active AI when only fallback provider (Groq) is configu
   }
 });
 
+test('custom env var names (GEMINI_API_KEY1, GROQ_KEY) and gsk_ keys in GEMINI vars are classified properly', () => {
+  const originalEnv = { ...process.env };
+  try {
+    for (const k of Object.keys(process.env)) {
+      if (/gemini|groq|openai|openrouter/i.test(k)) delete process.env[k];
+    }
+    process.env.GEMINI_API_KEY1 = 'AIzaSyKeyOne';
+    process.env.GEMINI_KEY_2 = 'AIzaSyKeyTwo';
+    process.env.GEMINI_API_KEY_3 = 'gsk_misplaced_groq_key';
+
+    const geminiKeys = getGeminiApiKeys();
+    assert.deepEqual(geminiKeys, ['AIzaSyKeyOne', 'AIzaSyKeyTwo']);
+    assert.equal(hasFallbackAiKey(), true);
+    assert.equal(getFallbackAiProvider().provider, 'groq');
+    assert.equal(getFallbackAiProvider().key, 'gsk_misplaced_groq_key');
+  } finally {
+    process.env = originalEnv;
+  }
+});
+
+

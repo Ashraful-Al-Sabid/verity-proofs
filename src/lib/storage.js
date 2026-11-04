@@ -23,7 +23,9 @@ export function loadState() {
       if (typeof state[key] !== 'string') state[key] = initialState()[key];
     }
     state.geminiModel = normalizeGeminiModel(state.geminiModel);
-    if (!isSupportedGeminiModel(state.geminiModel)) state.geminiModel = state.geminiModels[0] || DEFAULT_GEMINI_MODEL;
+    if (!isSupportedGeminiModel(state.geminiModel) || /^gemini-3\.[5-9]/i.test(state.geminiModel)) {
+      state.geminiModel = state.geminiModels[0] || DEFAULT_GEMINI_MODEL;
+    }
     if (!record(state.authUser) || typeof state.authUser.id !== 'string') state.authUser = null;
     if (state.authUser) {
       if (typeof state.authUser.email !== 'string') state.authUser.email = '';

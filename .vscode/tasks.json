@@ -1,51 +1,27 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Serve local website",
-      "type": "shell",
-      "command": "npm.cmd",
-      "args": [
-        "run",
-        "dev"
-      ],
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "custom",
-        "pattern": {
-          "regexp": "^$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".*vite.*",
-          "endsPattern": ".*Local:.*http.*"
-        }
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "Build website",
-      "type": "shell",
-      "command": "npm.cmd",
-      "args": [
-        "run",
-        "build"
-      ],
-      "problemMatcher": [],
-      "group": "build"
-    },
-    {
-      "label": "Run tests",
-      "type": "shell",
-      "command": "npm.cmd",
-      "args": [
-        "test"
-      ],
-      "problemMatcher": [],
-      "group": "test"
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Serve local website",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build website",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"build"
+			],
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
 }

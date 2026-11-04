@@ -25,9 +25,12 @@ export function scoreGeminiModel(value) {
   const id = normalizeGeminiModel(value);
   if (!isSupportedGeminiModel(id)) return -Infinity;
   const [, major, minor = '0'] = id.match(/^gemini-(\d+)(?:\.(\d+))?/);
+  const subMinorPenalty = /^gemini-3\.[1-9].*flash/i.test(id) ? 200000 : 0;
   return Number(major) * 1000000 + Number(minor) * 10000 +
+    (id === 'gemini-3-flash-preview' ? 5000 : 0) +
     (id.includes('flash-lite') ? 700 : id.includes('flash') ? 600 : 300) -
-    (/exp|preview/.test(id) ? 50 : 0);
+    (/exp|preview/.test(id) ? 50 : 0) -
+    subMinorPenalty;
 }
 
 export function filterGeminiModels(values) {

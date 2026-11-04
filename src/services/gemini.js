@@ -191,12 +191,18 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
       if (!isSupportedGeminiModel(cleanName)) throw new Error('Only Gemini 3 or newer text models are supported.');
       const targetUrl = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(cleanName) + ':generateContent?key=' + encodeURIComponent(apiKey);
       const retries = typeof maxRetries === 'number' ? maxRetries : 1;
+      const useZeroThinking = /^gemini-3-flash/i.test(cleanName);
       let usePlain = false;
 
       for (let attempt = 0; attempt <= retries; attempt++) {
         const genConfig = usePlain
-          ? { temperature: 0.1, maxOutputTokens: 1500 }
-          : { temperature: 0.1, maxOutputTokens: 1500, responseMimeType: 'application/json' };
+          ? { temperature: 0.1, maxOutputTokens: 2048 }
+          : {
+              temperature: 0.1,
+              maxOutputTokens: 2048,
+              responseMimeType: 'application/json',
+              ...(useZeroThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+            };
         const res = await fetch(targetUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

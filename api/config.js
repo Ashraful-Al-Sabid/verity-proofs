@@ -30,7 +30,7 @@ async function discoverModelsForKey(apiKey) {
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
 
   try {
     const res = await fetch(
@@ -56,6 +56,10 @@ async function discoverModelsForKey(apiKey) {
     usable.sort((a, b) => scoreGeminiModel(b) - scoreGeminiModel(a));
 
     if (usable.length > 0) {
+      if (usable.includes(DEFAULT_GEMINI_MODEL) && usable[0] !== DEFAULT_GEMINI_MODEL) {
+        usable.splice(usable.indexOf(DEFAULT_GEMINI_MODEL), 1);
+        usable.unshift(DEFAULT_GEMINI_MODEL);
+      }
       cachedDiscovery = {
         keySuffix,
         bestModel: usable[0],
