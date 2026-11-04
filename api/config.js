@@ -1,5 +1,6 @@
 import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, isSupportedGeminiModel, scoreGeminiModel } from '../src/lib/gemini-models.js';
 import { sanitizeSupabaseConfig } from '../src/lib/supabase-config.js';
+import { getGeminiApiKeys, hasFallbackAiKey, getFallbackAiProvider } from '../src/lib/ai-config.js';
 // Vercel Serverless Function: Public App Configuration & Auto Model Discovery
 // Automatically discovers the fastest working Gemini model for the configured GEMINI_API_KEY.
 
@@ -109,20 +110,22 @@ export default async function handler(req, res) {
 
   const { url: supabaseUrl, key: supabaseAnonKey } = sanitizeSupabaseConfig(rawSupabaseUrl, rawSupabaseKey);
 
-  const geminiApiKey = (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_GEMINI_API_KEY ||
-    ''
-  ).trim().replace(/^["']|["']$/g, '').trim();
-
-  const hasServerGemini = !!geminiApiKey;
+  const geminiKeys = getGeminiApiKeys();
+  const hasFallback = hasFallbackAiKey();
+  const hasServerGemini = geminiKeys.length > 0 || hasFallback;
   let bestModel = DEFAULT_GEMINI_MODEL;
   let availableModels = [];
 
-  if (hasServerGemini) {
-    const discovered = await discoverModelsForKey(geminiApiKey);
+  if (geminiKeys.length > 0) {
+    const discovered = await discoverModelsForKey(geminiKeys[0]);
     bestModel = discovered.bestModel;
     availableModels = discovered.availableModels;
+  } else if (hasFallback) {
+    const fb = getFallbackAiProvider();
+    if (fb) {
+      bestModel = fb.model;
+      availableModels = [fb.model];
+    }
   }
 
   return res.status(200).json({

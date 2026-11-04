@@ -2,6 +2,9 @@ import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_MODELS, filterGeminiModels, isSupp
 import { validateEvaluation } from '../src/lib/evaluation-result.js';
 import { coursesData } from '../src/data/courses.js';
 import { stepMeta } from '../src/data/rubrics.js';
+import { getGeminiApiKeys, hasFallbackAiKey, getFallbackAiProvider } from '../src/lib/ai-config.js';
+
+export { getGeminiApiKeys };
 // Vercel Serverless Function: Ultra-Fast Gemini AI Proof Evaluator
 // Automatically discovers the best/fastest available model for the API key, caches the winner,
 // and uses hedged requests so proof evaluation completes in < 1 second.
@@ -99,6 +102,149 @@ function parseGeminiResponseJson(json, rubric, respondedModel) {
   return validateEvaluation(evalResult);
 }
 
+export async function callFallbackAi(promptText, rubric) {
+  const fb = getFallbackAiProvider();
+  if (!fb) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 9000);
+
+  try {
+    const res = await fetch(fb.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${fb.key}`
+      },
+      body: JSON.stringify({
+        model: fb.model,
+        messages: [{ role: 'user', content: promptText }],
+        response_format: { type: 'json_object' },
+        temperature: 0.1
+      }),
+      signal: controller.signal
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Fallback AI (${fb.model}) HTTP ${res.status}: ${txt.slice(0, 150)}`);
+    }
+
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Empty response from fallback AI.');
+
+    let cleaned = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+    const evalResult = JSON.parse(cleaned);
+    if (!Array.isArray(evalResult.established)) evalResult.established = [];
+    if (typeof evalResult.done !== 'number') evalResult.done = evalResult.established.length;
+    if (typeof evalResult.total !== 'number') evalResult.total = Math.max(evalResult.done, (rubric?.steps ? rubric.steps.length : 2) + 1);
+    evalResult.engine = 'ai';
+    evalResult.modelName = fb.model;
+    evalResult.isServerHosted = true;
+    return validateEvaluation(evalResult);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function evaluateWithKey(apiKey, cleanReq, promptText, rubric, availableModels) {
+  const discovered = await getDiscoveredModels(apiKey, availableModels);
+
+  const candidates = [];
+  if (cachedVerifiedModel && discovered.includes(cachedVerifiedModel)) {
+    candidates.push(cachedVerifiedModel);
+  }
+  if (cleanReq && isSupportedGeminiModel(cleanReq) && !candidates.includes(cleanReq)) {
+    candidates.push(cleanReq);
+  }
+  discovered.forEach(m => {
+    if (!candidates.includes(m)) candidates.push(m);
+  });
+  FALLBACK_FAST_MODELS.forEach(m => {
+    if (!candidates.includes(m)) candidates.push(m);
+  });
+
+  const candidatesToTry = candidates.slice(0, 6);
+  const primaryModel = candidatesToTry[0];
+  const secondaryModel = candidatesToTry[1] || primaryModel;
+
+  let winningResult = null;
+  const errors = [];
+
+  try {
+    winningResult = await new Promise((resolve, reject) => {
+      let settled = false;
+      let hedgeTimer = null;
+      let activeCount = 1;
+      const hedgeErrors = [];
+
+      function handleSuccess(resObj) {
+        if (settled) return;
+        settled = true;
+        if (hedgeTimer) clearTimeout(hedgeTimer);
+        resolve(resObj);
+      }
+
+      function handleError(err, isPrimary) {
+        hedgeErrors.push(err);
+        if (isPrimary && hedgeTimer) {
+          clearTimeout(hedgeTimer);
+          hedgeTimer = null;
+          launchSecondary();
+        }
+        activeCount--;
+        if (activeCount === 0 && !settled) {
+          settled = true;
+          reject(hedgeErrors[0] || new Error('Primary and secondary models failed.'));
+        }
+      }
+
+      let secondaryLaunched = false;
+      function launchSecondary() {
+        if (secondaryLaunched || settled || !secondaryModel || secondaryModel === primaryModel) return;
+        secondaryLaunched = true;
+        activeCount++;
+        callSingleModel(apiKey, secondaryModel, promptText, rubric)
+          .then(handleSuccess)
+          .catch(e => handleError(e, false));
+      }
+
+      hedgeTimer = setTimeout(launchSecondary, 1200);
+
+      callSingleModel(apiKey, primaryModel, promptText, rubric)
+        .then(handleSuccess)
+        .catch(e => handleError(e, true));
+    });
+  } catch (topErr) {
+    errors.push(topErr.message || String(topErr));
+    if (cachedVerifiedModel === primaryModel || cachedVerifiedModel === secondaryModel) {
+      cachedVerifiedModel = '';
+    }
+    for (let i = 2; i < candidatesToTry.length; i++) {
+      const nextModel = candidatesToTry[i];
+      try {
+        winningResult = await callSingleModel(apiKey, nextModel, promptText, rubric);
+        if (winningResult) break;
+      } catch (failErr) {
+        errors.push(failErr.message || String(failErr));
+      }
+    }
+    if (!winningResult) {
+      throw new Error(errors[0] || 'All candidate Gemini models failed to evaluate the proof.');
+    }
+  }
+
+  cachedVerifiedModel = winningResult.modelName;
+  winningResult.availableModels = discovered;
+  return winningResult;
+}
+
 async function callSingleModel(apiKey, modelName, promptText, rubric) {
   if (!isSupportedGeminiModel(modelName)) throw new Error('Only Gemini 3 or newer text models are supported.');
   const genConfig = {
@@ -157,16 +303,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const apiKey = (
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_GEMINI_API_KEY ||
-    ''
-  ).trim().replace(/^["']|["']$/g, '').trim();
+  const geminiKeys = getGeminiApiKeys();
+  const hasFallback = hasFallbackAiKey();
 
-  if (!apiKey) {
+  if (geminiKeys.length === 0 && !hasFallback) {
     return res.status(500).json({
-      error: 'Server GEMINI_API_KEY is not configured in Vercel environment variables.',
-      fallbackToLocal: true
+      error: 'No AI API key is configured. Please set GEMINI_API_KEY, GEMINI_API_KEY_2, GROQ_API_KEY, or OPENAI_API_KEY in Vercel environment variables.',
+      fallbackToLocal: false
     });
   }
 
@@ -217,98 +360,40 @@ export default async function handler(req, res) {
       'STUDENT ATTEMPT:\n"""\n' + userText + '\n"""\n' +
       (cumulativeText && cumulativeText !== userText ? 'Prior draft context: ' + cumulativeText : '');
 
-    const discovered = await getDiscoveredModels(apiKey, availableModels);
     const cleanReq = (model || '').replace(/^models\//, '').trim();
-
-    // Build ordered candidate list starting with verified working model or valid requested model
-    const candidates = [];
-    if (cachedVerifiedModel && discovered.includes(cachedVerifiedModel)) {
-      candidates.push(cachedVerifiedModel);
-    }
-    if (cleanReq && discovered.includes(cleanReq) && !candidates.includes(cleanReq)) {
-      candidates.push(cleanReq);
-    }
-    discovered.forEach(m => {
-      if (!candidates.includes(m)) candidates.push(m);
-    });
-    FALLBACK_FAST_MODELS.forEach(m => {
-      if (!candidates.includes(m)) candidates.push(m);
-    });
-
-    const candidatesToTry = candidates.slice(0, 6);
-    const primaryModel = candidatesToTry[0];
-    const secondaryModel = candidatesToTry[1] || primaryModel;
-
     let winningResult = null;
     const errors = [];
 
-    // Hedged execution between top two candidates, with automatic failover across remaining candidates
-    try {
-      winningResult = await new Promise((resolve, reject) => {
-        let settled = false;
-        let hedgeTimer = null;
-        let activeCount = 1;
-        const hedgeErrors = [];
-
-        function handleSuccess(resObj) {
-          if (settled) return;
-          settled = true;
-          if (hedgeTimer) clearTimeout(hedgeTimer);
-          resolve(resObj);
+    // 1. Try Gemini key(s), rotating to next key if 429 quota or 503 error occurs
+    for (let i = 0; i < geminiKeys.length; i++) {
+      const apiKey = geminiKeys[i];
+      try {
+        winningResult = await evaluateWithKey(apiKey, cleanReq, promptText, rubric, availableModels);
+        if (winningResult) break;
+      } catch (keyErr) {
+        errors.push(`Gemini key ${i + 1}: ${keyErr.message}`);
+        if (i < geminiKeys.length - 1 && (/quota|429|resource_exhausted|rate_limit|exceeded|503/i.test(keyErr.message) || keyErr.status === 429 || keyErr.status === 503)) {
+          continue;
         }
-
-        function handleError(err, isPrimary) {
-          hedgeErrors.push(err);
-          if (isPrimary && hedgeTimer) {
-            clearTimeout(hedgeTimer);
-            hedgeTimer = null;
-            launchSecondary();
-          }
-          activeCount--;
-          if (activeCount === 0 && !settled) {
-            settled = true;
-            reject(hedgeErrors[0] || new Error('Primary and secondary models failed.'));
-          }
+        if (geminiKeys.length === 1 && !hasFallback) {
+          throw keyErr;
         }
-
-        let secondaryLaunched = false;
-        function launchSecondary() {
-          if (secondaryLaunched || settled || !secondaryModel || secondaryModel === primaryModel) return;
-          secondaryLaunched = true;
-          activeCount++;
-          callSingleModel(apiKey, secondaryModel, promptText, rubric)
-            .then(handleSuccess)
-            .catch(e => handleError(e, false));
-        }
-
-        hedgeTimer = setTimeout(launchSecondary, 1200);
-
-        callSingleModel(apiKey, primaryModel, promptText, rubric)
-          .then(handleSuccess)
-          .catch(e => handleError(e, true));
-      });
-    } catch (topErr) {
-      errors.push(topErr.message || String(topErr));
-      if (cachedVerifiedModel === primaryModel || cachedVerifiedModel === secondaryModel) {
-        cachedVerifiedModel = '';
-      }
-      // Failover across the remaining candidate models in order
-      for (let i = 2; i < candidatesToTry.length; i++) {
-        const nextModel = candidatesToTry[i];
-        try {
-          winningResult = await callSingleModel(apiKey, nextModel, promptText, rubric);
-          if (winningResult) break;
-        } catch (failErr) {
-          errors.push(failErr.message || String(failErr));
-        }
-      }
-      if (!winningResult) {
-        throw new Error(errors[0] || 'All candidate Gemini models failed to evaluate the proof.');
       }
     }
 
-    cachedVerifiedModel = winningResult.modelName;
-    winningResult.availableModels = discovered;
+    // 2. Fallback to alternative provider (Groq / OpenAI / OpenRouter) if Gemini keys are exhausted
+    if (!winningResult && hasFallback) {
+      try {
+        winningResult = await callFallbackAi(promptText, rubric);
+      } catch (fbErr) {
+        errors.push(`Fallback AI: ${fbErr.message}`);
+      }
+    }
+
+    if (!winningResult) {
+      throw new Error(errors[0] || 'All AI evaluators failed.');
+    }
+
     return res.status(200).json(winningResult);
 
   } catch (err) {

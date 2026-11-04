@@ -5,8 +5,11 @@ import { stepMeta } from '../data/rubrics.js';
 export function createGeminiService({ getState, saveState, updateAiStatusBadge }) {
 
   function formatModelLabel(m) {
-    return (m || DEFAULT_GEMINI_MODEL)
-      .replace(/^models\//, '')
+    if (!m) return 'Gemini';
+    const id = m.replace(/^models\//, '');
+    if (id.includes('llama')) return 'Llama 3.3 (Groq AI)';
+    if (id.includes('gpt-4o')) return 'GPT-4o Mini';
+    return id
       .replace('gemini-', 'Gemini ')
       .replace('-flash-lite', ' Flash Lite')
       .replace('-flash', ' Flash')
@@ -376,9 +379,11 @@ export function createGeminiService({ getState, saveState, updateAiStatusBadge }
         getState().geminiModels = filterGeminiModels(data.availableModels);
         stateUpdated = true;
       }
-      if (isSupportedGeminiModel(data.modelName) && data.modelName !== getState().geminiModel) {
-        getState().geminiModel = data.modelName;
-        stateUpdated = true;
+      if (data.modelName && data.modelName !== getState().geminiModel) {
+        if (isSupportedGeminiModel(data.modelName) || !data.modelName.startsWith('gemini-')) {
+          getState().geminiModel = data.modelName;
+          stateUpdated = true;
+        }
       }
       if (stateUpdated) {
         saveState();

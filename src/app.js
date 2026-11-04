@@ -963,8 +963,8 @@ function updateAiStatusBadge() {
 
 
 function renderMentorFeedback(result, pid) {
-  const isLiveGemini = result.engine === 'gemini';
-  const engineLabel = isLiveGemini
+  const isLiveAi = result.engine === 'gemini' || result.engine === 'ai';
+  const engineLabel = isLiveAi
     ? '✨ Evaluated by ' + formatModelLabel(result.modelName || DEFAULT_GEMINI_MODEL)
     : '⚡ Evaluated by Socratic Rule Engine';
 
@@ -1104,8 +1104,8 @@ checkBtn.addEventListener('click', async () => {
       saveStepToCloud(activeCourseKey, pid, result, gain, hintsUsed, userText);
     }
 
-    const isLiveGemini = result.engine === 'gemini';
-    const engineLabel = isLiveGemini
+    const isLiveAi = result.engine === 'gemini' || result.engine === 'ai';
+    const engineLabel = isLiveAi
       ? '✨ Evaluated by ' + formatModelLabel(result.modelName || DEFAULT_GEMINI_MODEL)
       : '⚡ Evaluated by Socratic Rule Engine';
     const fallbackNoticeHtml = result.fallbackNotice ? `
@@ -1116,7 +1116,7 @@ checkBtn.addEventListener('click', async () => {
     feedbackTitle.textContent = result.title || 'Proof complete!';
     feedbackExplanation.innerHTML = `
       <div class="mentor-feedback-flow">
-        <div class="ai-engine-tag ${isLiveGemini ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
+        <div class="ai-engine-tag ${isLiveAi ? 'gemini' : 'local'}">${escapeHtml(engineLabel)}</div>
         ${fallbackNoticeHtml}
         <div class="mentor-section established">
           <div class="mentor-section-header">🌟 Why your proof works</div>
