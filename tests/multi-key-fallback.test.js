@@ -223,3 +223,4 @@ test('api/config reports active AI when only fallback provider (Groq) is configu
     process.env = originalEnv;
   }
 });
+
