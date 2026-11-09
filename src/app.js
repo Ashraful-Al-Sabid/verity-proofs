@@ -273,7 +273,10 @@ function renderPath() {
         <span class="node-sub">${statusLabel(key, p)}</span>
       </div>`;
 
-    const choose = () => { selectStep(i); };
+    const choose = () => {
+      selectStep(i);
+      startLessonBtn.click();
+    };
     nodeEl.addEventListener('click', (e) => { e.stopPropagation(); choose(); });
     nodeEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
@@ -298,6 +301,13 @@ function selectStep(i) {
   dynamicPathNodes.querySelectorAll('.path-node').forEach((el, idx) => {
     el.classList.toggle('node-selected', idx === selectedStep);
   });
+
+  const card = document.getElementById('parity-action-card');
+  if (card) {
+    card.classList.remove('card-triggered');
+    void card.offsetWidth;
+    card.classList.add('card-triggered');
+  }
 
   popupNodeMeta.textContent = `Step ${selectedStep + 1} of ${ps.length} · ${meta.kind === 'concept' ? 'Concept' : 'Problem'}`
     + (st === 'proved' ? ' · ✓ Proved' : st === 'reviewed' ? ' · Solution viewed' : '');
