@@ -43,6 +43,7 @@ body {
 .nav-left {
   display: flex;
   align-items: center;
+  gap: 16px;
 }
 
 .brand-logo {
@@ -318,73 +319,47 @@ body {
 }
 
 
-/* Buildathon Announcement Gradient Banner */
-.buildathon-banner {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 24px;
-  background: linear-gradient(90deg, #e9e5ff 0%, #ddd6fe 20%, #f3d9fa 44%, #fde2c8 68%, #fed7aa 84%, #ede9fe 100%);
-  border-bottom: 1px solid rgba(139, 92, 246, 0.16);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  z-index: 95;
-}
-
-.buildathon-banner-inner {
+/* Buildathon Sticker in Navbar */
+.navbar-sticker {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  text-align: center;
-}
-
-.buildathon-banner-icon {
-  width: 24px;
-  height: 24px;
+  user-select: none;
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 4px rgba(124, 58, 237, 0.2));
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
+  line-height: 1;
 }
 
-.buildathon-banner-text {
-  font-family: var(--font-sans);
-  font-size: 0.88rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: #2e1065;
-  line-height: 1.3;
+.navbar-sticker:hover {
+  transform: translateY(-1px) scale(1.02);
+}
+
+.navbar-sticker-img {
+  height: 38px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
 }
 
 @media (max-width: 640px) {
-  .buildathon-banner {
-    padding: 8px 14px;
-    min-height: 38px;
-  }
-
-  .buildathon-banner-text {
-    font-size: 0.78rem;
-  }
-
-  .buildathon-banner-icon {
-    width: 20px;
-    height: 20px;
-  }
-}
-
-
-@media (max-width: 640px) {
-  .navbar { padding: 0 12px; gap: 10px; }
-  .brand-logo { font-size: 1.4rem; gap: 6px; }
-  .brand-icon { width: 22px; height: 22px; }
-  .nav-links { gap: 6px; }
-  .nav-link { font-size: 0.84rem; padding: 0 3px; min-width: 40px; justify-content: center; }
+  .navbar { padding: 0 12px; gap: 8px; }
+  .nav-left { gap: 8px; }
+  .brand-logo { font-size: 1.35rem; gap: 5px; }
+  .brand-icon { width: 20px; height: 20px; }
+  .navbar-sticker-img { height: 28px; max-width: 95px; }
+  .nav-links { gap: 5px; }
+  .nav-link { font-size: 0.82rem; padding: 0 3px; min-width: 36px; justify-content: center; }
   .nav-link .icon { display: none; }
   .nav-menu-item { margin-left: 0; }
-  .menu-btn { min-width: 44px; min-height: 44px; }
+  .menu-btn { min-width: 40px; min-height: 40px; }
 }
 
 @media (max-width: 360px) {
   .brand-logo { font-size: 1.15rem; gap: 4px; }
+  .nav-left { gap: 6px; }
+  .navbar-sticker-img { height: 24px; max-width: 80px; }
   .navbar { gap: 4px; }
 }
