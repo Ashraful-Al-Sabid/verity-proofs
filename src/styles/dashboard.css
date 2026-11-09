@@ -39,7 +39,7 @@
 }
 
 .home-buildathon-sticker {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   display: inline-flex;
   align-items: center;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
@@ -51,19 +51,19 @@
 }
 
 .home-buildathon-sticker-img {
-  height: 52px;
+  height: 78px;
   width: auto;
-  max-width: 180px;
+  max-width: 270px;
   object-fit: contain;
   display: block;
-  border-radius: 8px;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.08));
+  border-radius: 10px;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.1));
 }
 
 @media (max-width: 640px) {
   .home-buildathon-sticker-img {
-    height: 42px;
-    max-width: 150px;
+    height: 62px;
+    max-width: 225px;
   }
 }
 
