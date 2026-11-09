@@ -43,7 +43,6 @@ body {
 .nav-left {
   display: flex;
   align-items: center;
-  gap: 16px;
 }
 
 .brand-logo {
@@ -319,47 +318,18 @@ body {
 }
 
 
-/* Buildathon Sticker in Navbar */
-.navbar-sticker {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  flex-shrink: 0;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
-  line-height: 1;
-}
-
-.navbar-sticker:hover {
-  transform: translateY(-1px) scale(1.02);
-}
-
-.navbar-sticker-img {
-  height: 40px;
-  width: auto;
-  max-width: 150px;
-  object-fit: contain;
-  display: block;
-  border-radius: 6px;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08));
-}
-
 @media (max-width: 640px) {
-  .navbar { padding: 0 12px; gap: 8px; }
-  .nav-left { gap: 8px; }
-  .brand-logo { font-size: 1.35rem; gap: 5px; }
-  .brand-icon { width: 20px; height: 20px; }
-  .navbar-sticker-img { height: 28px; max-width: 95px; }
-  .nav-links { gap: 5px; }
-  .nav-link { font-size: 0.82rem; padding: 0 3px; min-width: 36px; justify-content: center; }
+  .navbar { padding: 0 12px; gap: 10px; }
+  .brand-logo { font-size: 1.4rem; gap: 6px; }
+  .brand-icon { width: 22px; height: 22px; }
+  .nav-links { gap: 6px; }
+  .nav-link { font-size: 0.84rem; padding: 0 3px; min-width: 40px; justify-content: center; }
   .nav-link .icon { display: none; }
   .nav-menu-item { margin-left: 0; }
-  .menu-btn { min-width: 40px; min-height: 40px; }
+  .menu-btn { min-width: 44px; min-height: 44px; }
 }
 
 @media (max-width: 360px) {
   .brand-logo { font-size: 1.15rem; gap: 4px; }
-  .nav-left { gap: 6px; }
-  .navbar-sticker-img { height: 24px; max-width: 80px; }
   .navbar { gap: 4px; }
 }
