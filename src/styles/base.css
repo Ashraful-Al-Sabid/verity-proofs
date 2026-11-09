@@ -335,9 +335,9 @@ body {
 }
 
 .navbar-sticker-img {
-  height: 38px;
+  height: 40px;
   width: auto;
-  max-width: 140px;
+  max-width: 150px;
   object-fit: contain;
   display: block;
   border-radius: 6px;
